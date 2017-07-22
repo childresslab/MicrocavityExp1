@@ -1,0 +1,568 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1270</width>
+    <height>523</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>MainWindow</string>
+  </property>
+  <property name="toolTipDuration" stdset="0">
+   <number>0</number>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <property name="enabled">
+    <bool>true</bool>
+   </property>
+   <layout class="QGridLayout" name="gridLayout_15">
+    <item row="0" column="0">
+     <widget class="PlotWidget" name="scope_PlotWidget">
+      <property name="minimumSize">
+       <size>
+        <width>500</width>
+        <height>0</height>
+       </size>
+      </property>
+     </widget>
+    </item>
+    <item row="0" column="1" rowspan="2">
+     <layout class="QGridLayout" name="gridLayout_13">
+      <item row="0" column="0">
+       <widget class="QGroupBox" name="horizontal_groupBox">
+        <property name="title">
+         <string>Horizontal</string>
+        </property>
+        <layout class="QGridLayout" name="gridLayout_8">
+         <item row="0" column="0">
+          <layout class="QGridLayout" name="gridLayout_5">
+           <item row="0" column="1">
+            <widget class="QScrollBar" name="horizontal_position_horizontalScrollBar">
+             <property name="maximum">
+              <number>100</number>
+             </property>
+             <property name="value">
+              <number>50</number>
+             </property>
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="0">
+            <widget class="QLabel" name="horizontal_position_label">
+             <property name="text">
+              <string>Horizontal Position</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="hscale_label">
+             <property name="text">
+              <string>HScale (V/square)</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QDoubleSpinBox" name="hscale_doubleSpinBox"/>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QGroupBox" name="general_groupBox">
+        <property name="title">
+         <string>General</string>
+        </property>
+        <layout class="QGridLayout" name="gridLayout_9">
+         <item row="0" column="0">
+          <layout class="QGridLayout" name="gridLayout_2">
+           <item row="0" column="0">
+            <widget class="QPushButton" name="run_pushButton">
+             <property name="text">
+              <string>Run</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QPushButton" name="autoscale_pushButton">
+             <property name="text">
+              <string>Auto Scale</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QPushButton" name="singlerun_pushButton">
+             <property name="text">
+              <string>Single</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QPushButton" name="stop_pushButton">
+             <property name="text">
+              <string>Stop</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QGroupBox" name="trigger_groupBox">
+        <property name="title">
+         <string>Trigger</string>
+        </property>
+        <layout class="QGridLayout" name="gridLayout_10">
+         <item row="1" column="0" colspan="2">
+          <widget class="QPushButton" name="trigger50_pushButton">
+           <property name="text">
+            <string>Trigger 50%</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="2">
+          <widget class="QPushButton" name="force_trigger_pushButton">
+           <property name="text">
+            <string>Force Trigger</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="trigger_mode_label">
+           <property name="text">
+            <string>Mode</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QRadioButton" name="trigger_EDGE_radioButton">
+           <property name="text">
+            <string>Edge</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="2">
+          <widget class="QLabel" name="trigger_level_label">
+           <property name="text">
+            <string>Level</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="3">
+          <widget class="QScrollBar" name="trigger_level_verticalScrollBar">
+           <property name="maximum">
+            <number>100</number>
+           </property>
+           <property name="value">
+            <number>50</number>
+           </property>
+           <property name="orientation">
+            <enum>Qt::Vertical</enum>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="2">
+          <widget class="QComboBox" name="trigger_source_comboBox"/>
+         </item>
+         <item row="0" column="0">
+          <widget class="QLabel" name="source_label">
+           <property name="text">
+            <string>Source</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QGroupBox" name="acquire_groupBox">
+        <property name="title">
+         <string>Acquire</string>
+        </property>
+        <layout class="QGridLayout" name="gridLayout_7">
+         <item row="0" column="0">
+          <layout class="QGridLayout" name="gridLayout">
+           <item row="2" column="0">
+            <widget class="QRadioButton" name="aqcuire_mode_peak_radioButton">
+             <property name="text">
+              <string>Peak</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QRadioButton" name="aqcuire_mode_average_radioButton">
+             <property name="text">
+              <string>Average</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="0">
+            <widget class="QRadioButton" name="aqcuire_mode_normal_radioButton">
+             <property name="text">
+              <string>Normal</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QSpinBox" name="average_value_spinBox"/>
+           </item>
+           <item row="3" column="0" colspan="2">
+            <widget class="QRadioButton" name="aqcuire_mode_highres_radioButton">
+             <property name="text">
+              <string>High Resolution</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="2" column="0" colspan="2">
+       <layout class="QGridLayout" name="gridLayout_3">
+        <item row="0" column="0">
+         <widget class="QDoubleSpinBox" name="time_range_Spinbox">
+          <property name="buttonSymbols">
+           <enum>QAbstractSpinBox::NoButtons</enum>
+          </property>
+          <property name="suffix">
+           <string extracomment="micro sec"/>
+          </property>
+          <property name="decimals">
+           <number>5</number>
+          </property>
+          <property name="maximum">
+           <double>3000000.000000000000000</double>
+          </property>
+          <property name="singleStep">
+           <double>0.000001000000000</double>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="2">
+         <widget class="QPushButton" name="savedata_pushButton">
+          <property name="text">
+           <string>Save data</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QPushButton" name="getdata_pushButton">
+          <property name="text">
+           <string>Get data</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </item>
+    <item row="1" column="0">
+     <layout class="QGridLayout" name="gridLayout_14">
+      <item row="0" column="0">
+       <widget class="QGroupBox" name="channel1_groupBox">
+        <property name="title">
+         <string>Channel 1</string>
+        </property>
+        <layout class="QGridLayout" name="gridLayout_4">
+         <item row="1" column="0">
+          <widget class="QRadioButton" name="channel1_DC_radioButton">
+           <property name="text">
+            <string>DC</string>
+           </property>
+           <property name="checked">
+            <bool>false</bool>
+           </property>
+           <property name="autoExclusive">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QRadioButton" name="channel1_AC_radioButton">
+           <property name="text">
+            <string>AC</string>
+           </property>
+           <property name="autoExclusive">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QRadioButton" name="channel1_display_radioButton">
+           <property name="text">
+            <string>Display</string>
+           </property>
+           <property name="autoExclusive">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="0" colspan="2">
+          <widget class="QComboBox" name="channel1_vscale_comboBox"/>
+         </item>
+         <item row="2" column="1">
+          <widget class="QRadioButton" name="channel1_impedance_input_radioButton">
+           <property name="text">
+            <string>1M/50</string>
+           </property>
+           <property name="autoExclusive">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="2" rowspan="3">
+          <widget class="QScrollBar" name="Chanel1_zerolevel_verticalScrollBar">
+           <property name="maximum">
+            <number>100</number>
+           </property>
+           <property name="value">
+            <number>50</number>
+           </property>
+           <property name="orientation">
+            <enum>Qt::Vertical</enum>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QGroupBox" name="channel2_groupBox">
+        <property name="title">
+         <string>Channel 2</string>
+        </property>
+        <layout class="QGridLayout" name="gridLayout_6">
+         <item row="0" column="0" colspan="2">
+          <widget class="QComboBox" name="channel2_vscale_comboBox"/>
+         </item>
+         <item row="0" column="2" rowspan="3">
+          <widget class="QScrollBar" name="Chanel2_zerolevel_verticalScrollBar">
+           <property name="maximum">
+            <number>100</number>
+           </property>
+           <property name="value">
+            <number>50</number>
+           </property>
+           <property name="orientation">
+            <enum>Qt::Vertical</enum>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QRadioButton" name="channel2_DC_radioButton">
+           <property name="text">
+            <string>DC</string>
+           </property>
+           <property name="checked">
+            <bool>false</bool>
+           </property>
+           <property name="autoExclusive">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QRadioButton" name="channel2_AC_radioButton">
+           <property name="text">
+            <string>AC</string>
+           </property>
+           <property name="autoExclusive">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QRadioButton" name="channel2_display_radioButton">
+           <property name="text">
+            <string>Display</string>
+           </property>
+           <property name="autoExclusive">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QRadioButton" name="channel2_impedance_input_radioButton">
+           <property name="text">
+            <string>1M/50</string>
+           </property>
+           <property name="autoExclusive">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="0" column="2">
+       <widget class="QGroupBox" name="channel3_groupBox">
+        <property name="title">
+         <string>Channel 3</string>
+        </property>
+        <layout class="QGridLayout" name="gridLayout_11">
+         <item row="0" column="0" colspan="2">
+          <widget class="QComboBox" name="channel3_vscale_comboBox"/>
+         </item>
+         <item row="0" column="2" rowspan="3">
+          <widget class="QScrollBar" name="Chanel3_zerolevel_verticalScrollBar">
+           <property name="maximum">
+            <number>100</number>
+           </property>
+           <property name="value">
+            <number>50</number>
+           </property>
+           <property name="orientation">
+            <enum>Qt::Vertical</enum>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QRadioButton" name="channel3_DC_radioButton">
+           <property name="text">
+            <string>DC</string>
+           </property>
+           <property name="autoExclusive">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QRadioButton" name="channel3_AC_radioButton">
+           <property name="text">
+            <string>AC</string>
+           </property>
+           <property name="autoExclusive">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QRadioButton" name="channel3_display_radioButton">
+           <property name="text">
+            <string>Display</string>
+           </property>
+           <property name="autoExclusive">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QRadioButton" name="channel3_impedance_input_radioButton">
+           <property name="text">
+            <string>1M/50</string>
+           </property>
+           <property name="autoExclusive">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="0" column="3">
+       <widget class="QGroupBox" name="channel3_groupBox_2">
+        <property name="title">
+         <string>Channel 4</string>
+        </property>
+        <layout class="QGridLayout" name="gridLayout_12">
+         <item row="0" column="0" colspan="2">
+          <widget class="QComboBox" name="channel4_vscale_comboBox"/>
+         </item>
+         <item row="0" column="2" rowspan="3">
+          <widget class="QScrollBar" name="Chanel4_zerolevel_verticalScrollBar">
+           <property name="maximum">
+            <number>100</number>
+           </property>
+           <property name="value">
+            <number>50</number>
+           </property>
+           <property name="orientation">
+            <enum>Qt::Vertical</enum>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QRadioButton" name="channel4_DC_radioButton">
+           <property name="text">
+            <string>DC</string>
+           </property>
+           <property name="autoExclusive">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QRadioButton" name="channel4_AC_radioButton">
+           <property name="text">
+            <string>AC</string>
+           </property>
+           <property name="autoExclusive">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QRadioButton" name="channel4_display_radioButton">
+           <property name="text">
+            <string>Display</string>
+           </property>
+           <property name="autoExclusive">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QRadioButton" name="channel4_impedance_input_radioButton">
+           <property name="text">
+            <string>1M/50</string>
+           </property>
+           <property name="autoExclusive">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+     </layout>
+    </item>
+   </layout>
+   <zorder>scope_PlotWidget</zorder>
+   <zorder></zorder>
+   <zorder>channel1_groupBox</zorder>
+   <zorder>channel2_groupBox</zorder>
+   <zorder>channel3_groupBox_2</zorder>
+   <zorder>channel3_groupBox</zorder>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1270</width>
+     <height>21</height>
+    </rect>
+   </property>
+  </widget>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>PlotWidget</class>
+   <extends>QGraphicsView</extends>
+   <header>pyqtgraph</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>
