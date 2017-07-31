@@ -154,6 +154,7 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
         self._clock_daq_task = None
         self._scanner_clock_daq_task = None
         self._scanner_ao_task = None
+        self._scanner_ai_task = None
         self._scanner_counter_daq_tasks = []
         self._line_length = None
         self._odmr_length = None
@@ -172,6 +173,7 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
         config = self.getConfiguration()
 
         self._scanner_ao_channels = []
+        self._scanner_ai_channels = []
         self._voltage_range = []
         self._position_range = []
         self._current_position = []
@@ -179,6 +181,8 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
         self._scanner_counter_channels = []
         self._photon_sources = []
 
+        if 'pd1' in config.keys():
+            self._scanner_ai_channels.append(config['pd1'])
         # handle all the parameters given by the config
         if 'scanner_x_ao' in config.keys():
             self._scanner_ao_channels.append(config['scanner_x_ao'])
@@ -1010,6 +1014,75 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
             retval = -1
         return retval
 
+    def _start_analog_input(self):
+        """ Starts or restarts the analog input.
+
+        @return int: error code (0:OK, -1:error)
+        """
+        try:
+            # If an analog task is already running, kill that one first
+            if self._scanner_ai_task is not None:
+                # stop the analog output task
+                daq.DAQmxStopTask(self._scanner_ai_task)
+
+                # delete the configuration of the analog output
+                daq.DAQmxClearTask(self._scanner_ai_task)
+
+                # set the task handle to None as a safety
+                self._scanner_ai_task = None
+
+            # initialize ao channels / task for scanner, should always be active.
+            # Define at first the type of the variable as a Task:
+            self._scanner_ai_task = daq.TaskHandle()
+
+            # create the actual analog output task on the hardware device. Via
+            # byref you pass the pointer of the object to the TaskCreation function:
+            daq.DAQmxCreateTask('ScannerAI', daq.byref(self._scanner_ai_task))
+            for n, chan in enumerate(self._scanner_ai_channels):
+                # Assign and configure the created task to an analog output voltage channel.
+                daq.DAQmxCreateAIVoltageChan(
+                    # The AO voltage operation function is assigned to this task.
+                    self._scanner_ai_task,
+                    # use (all) scanner ao_channels for the output
+                    chan,
+                    # assign a name for that channel
+                    'Scanner AI Channel {0}'.format(n),
+                    #
+                    daq.DAQmx_Val_Cfg_Default,
+                    # minimum possible voltage
+                    0,
+                    # maximum possible voltage
+                    10,
+                    # units is Volt
+                    daq.DAQmx_Val_Volts,
+                    # empty for future use
+                    '')
+        except:
+            self.log.exception('Error starting analog output task.')
+            return -1
+        return 0
+
+    def _stop_analog_input(self):
+        """ Stops the analog input.
+
+        @return int: error code (0:OK, -1:error)
+        """
+        if self._scanner_ai_task is None:
+            return -1
+        retval = 0
+        try:
+            # stop the analog output task
+            daq.DAQmxStopTask(self._scanner_ai_task)
+        except:
+            self.log.exception('Error stopping analog input.')
+            retval = -1
+        try:
+            daq.DAQmxSetSampTimingType(self._scanner_ai_task, daq.DAQmx_Val_OnDemand)
+        except:
+            self.log.exception('Error changing analog input mode.')
+            retval = -1
+        return retval
+
 
     def set_up_scanner_clock(self, clock_frequency = None, clock_channel = None):
         """ Configures the hardware clock of the NiDAQ card to give the timing.
@@ -1084,7 +1157,7 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
 
         # the position has to be a vstack
         my_position = np.vstack(self._current_position)
-        print(my_position)
+        print(self._scanner_position_to_volt(my_position))
         # then directly write the position to the hardware
         try:
             self._write_scanner_ao(
@@ -1282,7 +1355,10 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
             return np.array([[-1.]])
 
         self._line_length = np.shape(line_path)[1]
-
+        self._start_analog_input()
+        daq.DAQmxCfgSampClkTiming(self._scanner_ai_task, "", 10000, daq.DAQmx_Val_Rising, daq.DAQmx_Val_FiniteSamps, 10)
+        rawdata = np.zeros(10, dtype=np.float64)
+        read = daq.int32()
         try:
             line_volts = self._scanner_position_to_volt(line_path)
 
@@ -1292,11 +1368,16 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
             for i in range(self._line_length):
                 print(line_path[0][i])
                 self.scanner_set_position(x=line_path[0][i], y=line_path[1][i], z=line_path[2][i])
-                rawdata = self.get_counter(samples=self._samples_number)
-                self.line_counts[0, i] = rawdata.sum() / self._samples_number
+                daq.DAQmxStartTask(self._scanner_ai_task)
+                daq.DAQmxReadAnalogF64(self._scanner_ai_task, 10, 1.0, daq.DAQmx_Val_GroupByChannel, rawdata, 10, daq.byref(read), None)
+                self.line_counts[0, i] = rawdata.sum() / 10
+                self._stop_analog_input()
+                #rawdata = self.get_counter(samples=self._samples_number)
+                #self.line_counts[0, i] =  rawdata.sum() / self._samples_number
 
 
             # stop the analog output task
+            self._stop_analog_input()
             self._stop_analog_output()
 
             # update the scanner position instance variable
@@ -1305,7 +1386,8 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
             self.log.exception('Error while scanning line.')
             return np.array([[-1.]])
         # return values is a rate of counts/s
-        return (self.line_counts * self._scanner_clock_frequency).transpose()
+        #return (self.line_counts * self._scanner_clock_frequency).transpose()
+        return self.line_counts.transpose()
 
     def close_scanner(self):
         """ Closes the scanner and cleans up afterwards.
@@ -1313,8 +1395,8 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
         @return int: error code (0:OK, -1:error)
         """
         a = self._stop_analog_output()
-        c = self.close_counter()
-        return -1 if a < 0 or c < 0 else 0
+        #c = self.close_counter()
+        return -1 if a < 0 else 0# or c < 0 else 0
 
     def close_scanner_clock(self):
         """ Closes the clock and cleans up afterwards.
@@ -1324,31 +1406,86 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
         return self.close_clock()
 
     # ================ End ConfocalScannerInterface Commands ===================
-    # ======================= Ramp signal Commands  ============================
-    def generate_ramp(self, amp, off, freq):
-        data = np.zeros(1000)
-        for i in range(1000):
-            data[i] =  np.sin(2 * np.pi* i/1000) - 2
+    # ======================= Ramp sig nal Commands  ============================
+    def start_ramp(self):
+        """Actually start the preconfigured counter task
 
-        self.ramptask = daq.TaskHandle()
+        @return int: error code (0:OK, -1:error)
+        """
+        if self.ramp_task is None:
+            self.log.error(
+                'Cannot start ramp since it is notconfigured!\n'
+                'Run the setup_ramp_output routine.')
+            return -1
 
-        daq.DAQmxCreateTask('Ramp',daq.byref(self.ramptask))
+        try:
+            daq.DAQmxStartTask(self.ramp_task)
+        except:
+            self.log.exception('Error while starting ramp.')
+            return -1
+        return 0
+
+    def stop_ramp(self):
+        """Actually start the preconfigured counter task
+
+        @return int: error code (0:OK, -1:error)
+        """
+        if self.ramp_task is None:
+            self.log.error(
+                'Cannot stop ramp since it is not running!\n'
+                'Start the ramp singal before you can actually stop it!')
+            return -1
+        try:
+            daq.DAQmxStopTask(self.ramp_task)
+        except:
+            self.log.exception('Error while stopping ramp.')
+            return -1
+        return 0
+
+    def close_ramp(self):
+        """ Clear tasks, so that counters are not in use any more.
+
+        @return int: error code (0:OK, -1:error)
+        """
+        retval = 0
+        try:
+            # stop the task
+            daq.DAQmxStopTask(self.ramp_task)
+        except:
+            self.log.exception('Error while closing ramp.')
+            retval = -1
+        try:
+            # clear the task
+            daq.DAQmxClearTask(self.ramp_task)
+            self.ramp_task = None
+        except:
+            self.log.exception('Error while clearing ramp.')
+            retval = -1
+        return retval
+
+    def setup_ramp_output(self, SampNum, amp, off, freq):
+        data = self.ramp_function(SampNum,amp,off,freq)
+
+        self.ramp_task = daq.TaskHandle()
+
+        daq.DAQmxCreateTask('Ramp',daq.byref(self.ramp_task))
         output_channel = 'Dev1/ao0'
-        daq.DAQmxCreateAOVoltageChan(self.ramptask,output_channel,"",-3.75,0,daq.DAQmx_Val_Volts,None)
-        daq.DAQmxCfgSampClkTiming(self.ramptask,"",1000.0,daq.DAQmx_Val_Rising,daq.DAQmx_Val_ContSamps,1000)
-        daq.DAQmxWriteAnalogF64(self.ramptask, 1000,0,10.0,daq.DAQmx_Val_GroupByChannel,data,None,None)
+        daq.DAQmxCreateAOVoltageChan(self.ramp_task,output_channel,"",-3.75,0,daq.DAQmx_Val_Volts,None)
+        daq.DAQmxCfgSampClkTiming(self.ramp_task,"",SampNum,daq.DAQmx_Val_Rising,daq.DAQmx_Val_ContSamps,SampNum)
+        daq.DAQmxWriteAnalogF64(self.ramp_task, SampNum,0,10.0,daq.DAQmx_Val_GroupByChannel,data,None,None)
 
 
         pass
     def ramp_function(self, samples, amp, off, freq):
-        f = np.zeros(len(samples))
-        period = 1/(freq)
-        for i,t in enumerate(samples):
-            x = t % period
+        f = np.zeros(samples)
+        t = np.linspace(0,1,samples)
+        period = 1/freq
+        for i in range(samples):
+            x = t[i] % period
             if x < period/2:
-                f[i] = amp * x + off
+                f[i] = amp * x / (period/2) + off
             else:
-                f[i] = 2 *amp - x + off
+                f[i] = - amp * x /(period/2) + off + 2 * amp
         return f
 
     # ==================== End Ramp signal Commands  ===========================
