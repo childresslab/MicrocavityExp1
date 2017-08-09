@@ -154,6 +154,7 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
         self._clock_daq_task = None
         self._scanner_clock_daq_task = None
         self._scanner_ao_task = None
+        self._cavity_ao_task = None
         self._scanner_ai_task = None
         self._scanner_counter_daq_tasks = []
         self._line_length = None
@@ -175,11 +176,30 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
         self._scanner_ao_channels = []
         self._scanner_ai_channels = []
         self._voltage_range = []
+        self._cavity_voltage_range = []
         self._position_range = []
+        self._cavity_position_range = []
         self._current_position = []
+        self._current_cavity_position = []
         self._counter_channels = []
         self._scanner_counter_channels = []
         self._photon_sources = []
+
+        if 'cavity_ao' in config.keys():
+            self.cavity_channel = config['cavity_ao']
+            self._cavity_voltage_range = [-10,10]
+            self._current_cavity_position.append(0)
+            self._cavity_position_range.append([0, 20e-6])
+
+        if 'cavity_voltage_range' in config.keys():
+            if float(config['cavity_voltage_range'][0]) < float(config['cavity_voltage_range'][1]):
+                vlow = float(config['cavity_voltage_range'][0])
+                vhigh = float(config['cavity_voltage_range'][1])
+                self._cavity_voltage_range = [vlow, vhigh]
+            else:
+                self.log.warning(
+                    'Configuration ({0}) of cavity_voltage range incorrect, taking [-10, 10] instead.'
+                    ''.format(config['cavity_voltage range']))
 
         if 'pd1' in config.keys():
             self._scanner_ai_channels.append(config['pd1'])
@@ -199,11 +219,6 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
                     self._current_position.append(0)
                     self._position_range.append([0, 100e-6])
                     self._voltage_range.append([-10, 10])
-                    if 'scanner_a_ao' in config.keys():
-                        self._scanner_ao_channels.append(config['scanner_a_ao'])
-                        self._current_position.append(0)
-                        self._position_range.append([0, 100e-6])
-                        self._voltage_range.append([-10, 10])
 
         if len(self._scanner_ao_channels) < 1:
             self.log.error(
@@ -329,14 +344,14 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
             if len(self._position_range) > 2:
                 self.log.warning('No z_range configured taking [0,100e-6] instead.')
 
-        if 'a_range' in config.keys() and len(self._position_range) > 3:
-            if float(config['a_range'][0]) < float(config['a_range'][1]):
-                self._position_range[3] = [float(config['a_range'][0]),
-                                           float(config['a_range'][1])]
+        if 'cavity_range' in config.keys():
+            if float(config['cavity_range'][0]) < float(config['cavity_range'][1]):
+                self._cavity_position_range = [float(config['cavity_range'][0]),
+                                           float(config['cavity_range'][1])]
             else:
                 self.log.warning(
-                    'Configuration ({}) of a_range incorrect, taking [0,100e-6] instead.'
-                    ''.format(config['a_range']))
+                    'Configuration ({}) of cavity_range incorrect, taking [0,100e-6] instead.'
+                    ''.format(config['cavity_range']))
         else:
             if len(self._position_range) > 3:
                 self.log.warning('No a_range configured taking [0,100e-6] instead.')
@@ -394,22 +409,13 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
             if 'voltage_range' not in config.keys():
                 self.log.warning('No z_voltage_range configured, taking [-10, 10] instead.')
 
-        if 'a_voltage_range' in config.keys() and len(self._voltage_range) > 3:
-            if float(config['a_voltage_range'][0]) < float(config['a_voltage_range'][1]):
-                vlow = float(config['a_voltage_range'][0])
-                vhigh = float(config['a_voltage_range'][1])
-                self._voltage_range[3] = [vlow, vhigh]
-            else:
-                self.log.warning(
-                    'Configuration ({0}) of a_voltage_range incorrect, taking [-10, 10] instead.'
-                    ''.format(config['a_voltage_range']))
-        else:
-            if 'voltage_range' not in config.keys():
-                self.log.warning('No a_voltage_range configured taking [-10, 10] instead.')
-
         # Analog output is always needed and it does not interfere with the
         # rest, so start it always and leave it running
         if self._start_analog_output() < 0:
+            self.log.error('Failed to start analog output.')
+            raise Exception('Failed to start NI Card module due to analog output failure.')
+
+        if self._start_cavity_analog_output() < 0:
             self.log.error('Failed to start analog output.')
             raise Exception('Failed to start NI Card module due to analog output failure.')
 
@@ -1157,7 +1163,6 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
 
         # the position has to be a vstack
         my_position = np.vstack(self._current_position)
-        print(self._scanner_position_to_volt(my_position))
         # then directly write the position to the hardware
         try:
             self._write_scanner_ao(
@@ -1406,7 +1411,7 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
         return self.close_clock()
 
     # ================ End ConfocalScannerInterface Commands ===================
-    # ======================= Ramp sig nal Commands  ============================
+    # ======================= Ramp signal Commands  ============================
     def start_ramp(self):
         """Actually start the preconfigured counter task
 
@@ -1464,18 +1469,37 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
         return retval
 
     def setup_ramp_output(self, SampNum, amp, off, freq):
+        '''
+        generates a ramp task and writes a ramp signal to daq
+
+        :param SampNum:  Number of samples pr sec to write to NI card
+        :param amp: Amplitude of Ramp siganl
+        :param off: offset of ramp
+        :param freq: Frequency of ramp signal
+        :return:
+        '''
+
+        # Generate ramp signal
         data = self.ramp_function(SampNum,amp,off,freq)
 
+        # Create task for ramp signal
         self.ramp_task = daq.TaskHandle()
+        daq.DAQmxCreateTask('Ramp', daq.byref(self.ramp_task))
 
-        daq.DAQmxCreateTask('Ramp',daq.byref(self.ramp_task))
-        output_channel = 'Dev1/ao0'
-        daq.DAQmxCreateAOVoltageChan(self.ramp_task,output_channel,"",-3.75,0,daq.DAQmx_Val_Volts,None)
+        if self.cavity_channel is not None:
+            daq.DAQmxCreateAOVoltageChan(self.ramp_task,self.cavity_channel, "", self._cavity_voltage_range[0],
+                                         self._cavity_voltage_range[1], daq.DAQmx_Val_Volts,None)
+        else:
+            self.log.error('No cavity channel to generate ramp, set a cavity channel in config file')
+
+        #Use internal clock for generate the ramp
         daq.DAQmxCfgSampClkTiming(self.ramp_task,"",SampNum,daq.DAQmx_Val_Rising,daq.DAQmx_Val_ContSamps,SampNum)
-        daq.DAQmxWriteAnalogF64(self.ramp_task, SampNum,0,10.0,daq.DAQmx_Val_GroupByChannel,data,None,None)
 
+        # Write data to DAQ-card
+        daq.DAQmxWriteAnalogF64(self.ramp_task, SampNum,0,10.0,daq.DAQmx_Val_GroupByChannel,data, None, None)
 
-        pass
+        return 0
+
     def ramp_function(self, samples, amp, off, freq):
         f = np.zeros(samples)
         t = np.linspace(0,1,samples)
@@ -1483,10 +1507,175 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
         for i in range(samples):
             x = t[i] % period
             if x < period/2:
-                f[i] = amp * x / (period/2) + off
+                f[i] = amp * x / (period/2) + off - 0.5 * amp
             else:
-                f[i] = - amp * x /(period/2) + off + 2 * amp
+                f[i] = 2 * amp - amp * x /(period/2) + off - 0.5 * amp
         return f
+
+    def _start_cavity_analog_output(self):
+        """ Starts or restarts the analog output.
+
+        @return int: error code (0:OK, -1:error)
+        """
+        try:
+            # If an analog task is already running, kill that one first
+            if self._cavity_ao_task is not None:
+                # stop the analog output task
+                daq.DAQmxStopTask(self._cavity_ao_task)
+
+                # delete the configuration of the analog output
+                daq.DAQmxClearTask(self._cavity_ao_task)
+
+                # set the task handle to None as a safety
+                self._cavity_ao_task = None
+
+            # initialize ao channels / task for scanner, should always be active.
+            # Define at first the type of the variable as a Task:
+            self._cavity_ao_task = daq.TaskHandle()
+
+            # create the actual analog output task on the hardware device. Via
+            # byref you pass the pointer of the object to the TaskCreation function:
+            daq.DAQmxCreateTask('CavityAO', daq.byref(self._cavity_ao_task))
+
+            # Assign and configure the created task to an analog output voltage channel.
+            daq.DAQmxCreateAOVoltageChan(
+                # The AO voltage operation function is assigned to this task.
+                self._cavity_ao_task,
+                # use (all) scanner ao_channels for the output
+                self.cavity_channel,
+                # assign a name for that channel
+                'Scavity AO Channel',
+                # minimum possible voltage
+                self._cavity_voltage_range[0],
+                # maximum possible voltage
+                self._cavity_voltage_range[1],
+                # units is Volt
+                daq.DAQmx_Val_Volts,
+                # empty for future use
+                '')
+        except:
+            self.log.exception('Error starting cavity analog output task.')
+            return -1
+        return 0
+
+    def _stop_cavity_analog_output(self):
+        """ Stops the analog output.
+
+        @return int: error code (0:OK, -1:error)
+        """
+        if self._cavity_ao_task is None:
+            return -1
+        retval = 0
+        try:
+            # stop the analog output task
+            daq.DAQmxStopTask(self._cavity_ao_task)
+        except:
+            self.log.exception('Error stopping analog output.')
+            retval = -1
+        try:
+            daq.DAQmxSetSampTimingType(self._cavity_ao_task, daq.DAQmx_Val_OnDemand)
+        except:
+            self.log.exception('Error changing analog output mode.')
+            retval = -1
+        return retval
+
+    def _cavity_position_to_volt(self, position=None):
+        """ Converts a set of position pixels to acutal voltages.
+
+        @param float[][n] positions: array of n-part tuples defining the pixels
+
+        @return float[][n]: array of n-part tuples of corresponing voltages
+
+        The positions is typically a matrix like
+            [[x_values], [y_values], [z_values], [a_values]]
+            but x, xy, xyz and xyza are allowed formats.
+        """
+
+        if not isinstance(position, (frozenset, list, set, tuple, np.ndarray, )):
+            self.log.error('Given position list is no array type.')
+            return np.array([np.NaN])
+        vlist = []
+        vlist.append(float((self._cavity_voltage_range[1] - self._cavity_voltage_range[0])
+            / (self._cavity_position_range[1] - self._cavity_position_range[0])
+            * (position - self._cavity_position_range[0])
+            + self._cavity_voltage_range[0]
+            ))
+        volts = np.asanyarray(vlist, dtype=float)
+        print('volts' + '{}'.format(volts))
+        if volts.min() < self._cavity_voltage_range[0] or volts.max() > self._cavity_voltage_range[1]:
+            self.log.error(
+                'Voltages ({0}, {1}) exceed the limit, the positions have to '
+                'be adjusted to stay in the given range.'.format(volts.min(), volts.max()))
+            return np.array([np.NaN])
+        return volts
+
+    def _write_cavity_ao(self, voltages, length=1, start=False):
+        """Writes a set of voltages to the analog outputs.
+
+        @param float[][n] voltages: array of n-part tuples defining the voltage
+                                    points
+        @param int length: number of tuples to write
+        @param bool start: write imediately (True)
+                           or wait for start of task (False)
+
+        n depends on how many channels are configured for analog output
+        """
+        # Number of samples which were actually written, will be stored here.
+        # The error code of this variable can be asked with .value to check
+        # whether all channels have been written successfully.
+        self._AONwrittenC = daq.int32()
+        # write the voltage instructions for the analog output to the hardware
+        print('test')
+        daq.DAQmxWriteAnalogF64(
+            # write to this task
+            self._cavity_ao_task,
+            # length of the command (points)
+            length,
+            # start task immediately (True), or wait for software start (False)
+            start,
+            # maximal timeout in seconds for# the write process
+            self._RWTimeout,
+            # Specify how the samples are arranged: each pixel is grouped by channel number
+            daq.DAQmx_Val_GroupByChannel,
+            # the voltages to be written
+            voltages,
+            # The actual number of samples per channel successfully written to the buffer
+            daq.byref(self._AONwrittenC),
+            # Reserved for future use. Pass NULL(here None) to this parameter
+            None)
+        print('test')
+        return self._AONwrittenC.value
+
+    def cavity_set_position(self, pos=None):
+        """Move stage to pos.
+
+        #FIXME: No volts
+        @param float pos: postion in x-direction (volts)
+
+        @return int: error code (0:OK, -1:error)
+        """
+
+        # if self.getState() == 'locked':
+        #    self.log.error('Another scan_line is already running, close this one first.')
+        #    return -1
+
+        if pos is not None:
+            if not (self._cavity_position_range[0] <= pos <= self._cavity_position_range[1]):
+                self.log.error('You want to set x out of range: {0:f}.'.format(pos))
+                return -1
+            self._current_cavity_position[0] = np.float(pos)
+
+        # the position has to be a vstack
+        my_position = np.array(self._current_cavity_position)
+        # then directly write the position to the hardware
+
+        try:
+            self._write_cavity_ao(
+                voltages=self._cavity_position_to_volt(my_position),
+                start=True)
+        except:
+            return -1
+        return 0
 
     # ==================== End Ramp signal Commands  ===========================
 
