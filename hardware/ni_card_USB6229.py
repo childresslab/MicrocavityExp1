@@ -160,6 +160,8 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
         self._line_length = None
         self._odmr_length = None
         self._gated_counter_daq_task = None
+        self._ramp_task = None
+        self._sweep_task = None
 
         # used as a default for expected maximum counts
         self._max_counts = 3e7
@@ -170,6 +172,7 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
         self._scanner_clock_frequency_default = 100     # in Hz
         # number of readout samples, mainly used for gated counter
         self._samples_number_default = 50
+        self.SampNum = 10000
 
         config = self.getConfiguration()
 
@@ -1417,14 +1420,14 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
 
         @return int: error code (0:OK, -1:error)
         """
-        if self.ramp_task is None:
+        if self._ramp_task is None:
             self.log.error(
                 'Cannot start ramp since it is notconfigured!\n'
                 'Run the setup_ramp_output routine.')
             return -1
 
         try:
-            daq.DAQmxStartTask(self.ramp_task)
+            daq.DAQmxStartTask(self._ramp_task)
         except:
             self.log.exception('Error while starting ramp.')
             return -1
@@ -1435,13 +1438,13 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
 
         @return int: error code (0:OK, -1:error)
         """
-        if self.ramp_task is None:
+        if self._ramp_task is None:
             self.log.error(
                 'Cannot stop ramp since it is not running!\n'
                 'Start the ramp singal before you can actually stop it!')
             return -1
         try:
-            daq.DAQmxStopTask(self.ramp_task)
+            daq.DAQmxStopTask(self._ramp_task)
         except:
             self.log.exception('Error while stopping ramp.')
             return -1
@@ -1455,24 +1458,43 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
         retval = 0
         try:
             # stop the task
-            daq.DAQmxStopTask(self.ramp_task)
+            daq.DAQmxStopTask(self._ramp_task)
         except:
             self.log.exception('Error while closing ramp.')
             retval = -1
         try:
             # clear the task
-            daq.DAQmxClearTask(self.ramp_task)
-            self.ramp_task = None
+            daq.DAQmxClearTask(self._ramp_task)
+            self._ramp_task = None
         except:
             self.log.exception('Error while clearing ramp.')
             retval = -1
         return retval
 
-    def setup_ramp_output(self, SampNum, amp, off, freq):
+    def ramp_function(self, t, amp, off, freq, t0):
+        '''
+
+        :param t:
+        :param amp:
+        :param off:
+        :param freq:
+        :param t0:
+        :return:
+        '''
+        f = np.zeros(len(t))
+        period = 1 / freq
+        for i in range(len(t)):
+            x = (t[i]-t0) % period
+            if x < period / 2:
+                f[i] = amp * x / (period / 2) + off - 0.5 * amp
+            else:
+                f[i] = 2 * amp - amp * x / (period / 2) + off - 0.5 * amp
+        return f
+
+    def set_up_ramp_output(self, amp, off, freq):
         '''
         generates a ramp task and writes a ramp signal to daq
 
-        :param SampNum:  Number of samples pr sec to write to NI card
         :param amp: Amplitude of Ramp siganl
         :param off: offset of ramp
         :param freq: Frequency of ramp signal
@@ -1480,37 +1502,122 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
         '''
 
         # Generate ramp signal
-        data = self.ramp_function(SampNum,amp,off,freq)
+        t = np.linspace(0, 1, self.SampNum)
+        data = self.ramp_function(t, amp, off, freq, phase=0)
 
         # Create task for ramp signal
-        self.ramp_task = daq.TaskHandle()
-        daq.DAQmxCreateTask('Ramp', daq.byref(self.ramp_task))
+        self._ramp_task = daq.TaskHandle()
+        daq.DAQmxCreateTask('Ramp', daq.byref(self._ramp_task))
 
         if self.cavity_channel is not None:
-            daq.DAQmxCreateAOVoltageChan(self.ramp_task,self.cavity_channel, "", self._cavity_voltage_range[0],
+            daq.DAQmxCreateAOVoltageChan(self._ramp_task,self.cavity_channel, "", self._cavity_voltage_range[0],
                                          self._cavity_voltage_range[1], daq.DAQmx_Val_Volts,None)
         else:
             self.log.error('No cavity channel to generate ramp, set a cavity channel in config file')
 
         #Use internal clock for generate the ramp
-        daq.DAQmxCfgSampClkTiming(self.ramp_task,"",SampNum,daq.DAQmx_Val_Rising,daq.DAQmx_Val_ContSamps,SampNum)
+        daq.DAQmxCfgSampClkTiming(self._ramp_task,"",self.SampNum,daq.DAQmx_Val_Rising,
+                                  daq.DAQmx_Val_ContSamps,self.SampNum)
 
         # Write data to DAQ-card
-        daq.DAQmxWriteAnalogF64(self.ramp_task, SampNum,0,10.0,daq.DAQmx_Val_GroupByChannel,data, None, None)
+        daq.DAQmxWriteAnalogF64(self._ramp_task, self.SampNum,0,10.0,daq.DAQmx_Val_GroupByChannel,data, None, None)
 
         return 0
 
-    def ramp_function(self, samples, amp, off, freq):
-        f = np.zeros(samples)
-        t = np.linspace(0,1,samples)
-        period = 1/freq
-        for i in range(samples):
-            x = t[i] % period
-            if x < period/2:
-                f[i] = amp * x / (period/2) + off - 0.5 * amp
+    def start_sweep(self):
+        """Actually start the preconfigured counter task
+
+        @return int: error code (0:OK, -1:error)
+        """
+        if self._sweep_task is None:
+            self.log.error(
+                'Cannot start sweep since it is notconfigured!\n'
+                'Run the setup_sweep_output routine.')
+            return -1
+
+        try:
+            daq.DAQmxStartTask(self._sweep_task)
+        except:
+            self.log.exception('Error while starting sweep.')
+            return -1
+        return 0
+
+    def stop_sweep(self):
+        """Actually start the preconfigured counter task
+
+        @return int: error code (0:OK, -1:error)
+        """
+        if self._sweep_task is None:
+            self.log.error(
+                'Cannot stop sweep since it is not running!\n'
+                'Start the sweep singal before you can actually stop it!')
+            return -1
+        try:
+            daq.DAQmxStopTask(self._sweep_task)
+        except:
+            self.log.exception('Error while stopping sweep.')
+            return -1
+        return 0
+
+    def close_sweep(self):
+        """ Clear tasks, so that counters are not in use any more.
+
+        @return int: error code (0:OK, -1:error)
+        """
+        retval = 0
+        try:
+            # stop the task
+            daq.DAQmxStopTask(self._sweep_task)
+        except:
+            self.log.exception('Error while closing sweep.')
+            retval = -1
+        try:
+            # clear the task
+            daq.DAQmxClearTask(self._sweep_task)
+            self._sweep_task = None
+        except:
+            self.log.exception('Error while clearing sweep.')
+            retval = -1
+        return retval
+
+    def sweep_function(self, time, start, stop, freq, t0):
+        ''' Creating data array for NIcard with sweep singal '''
+        # array for output
+        f = np.zeros(len(time))
+        period = 1 / freq
+        tprime = time - t0
+        slope = (stop - start) / (period / 2)
+        for i in range(len(time)):
+            if tprime[i] % period < (1/2) * period:
+                f[i] = slope * (tprime[i] % period) + start
             else:
-                f[i] = 2 * amp - amp * x /(period/2) + off - 0.5 * amp
+                f[i] = - slope * (tprime[i] % period) + 2 * stop - start
         return f
+
+    def set_up_sweep(self, start_voltage, stop_voltage, freq, RepOfSweep):
+        ''' Create the sweep task for the NIcard '''
+
+        t = np.linspace(0, 1/freq, self.SampNum)
+        data = self.sweep_function(t, start_voltage, stop_voltage, freq, t0=0)
+
+        self._sweep_task = daq.TaskHandle()
+        daq.DAQmxCreateTask('sweep_task', daq.byref(self._sweep_task))
+
+        if self.cavity_channel is not None:
+            daq.DAQmxCreateAOVoltageChan(self._sweep_task, self.cavity_channel, "", self._cavity_voltage_range[0],
+                                     self._cavity_voltage_range[1], daq.DAQmx_Val_Volts, None)
+        else:
+            self.log.error('No cavity channel to generate ramp, set a cavity channel in config file')
+
+        SampRate = freq * self.SampNum
+        # Use internal clock for generate the ramp
+        daq.DAQmxCfgSampClkTiming(self._sweep_task, "", SampRate, daq.DAQmx_Val_Rising, daq.DAQmx_Val_FiniteSamps,
+                                  RepOfSweep * self.SampNum)
+
+        # Write data to DAQ-card
+        daq.DAQmxWriteAnalogF64(self._sweep_task, self.SampNum, 0, 100.0, daq.DAQmx_Val_GroupByChannel, data, None, None)
+
+        return 0
 
     def _start_cavity_analog_output(self):
         """ Starts or restarts the analog output.
@@ -1625,7 +1732,6 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
         # whether all channels have been written successfully.
         self._AONwrittenC = daq.int32()
         # write the voltage instructions for the analog output to the hardware
-        print('test')
         daq.DAQmxWriteAnalogF64(
             # write to this task
             self._cavity_ao_task,
@@ -1643,7 +1749,6 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
             daq.byref(self._AONwrittenC),
             # Reserved for future use. Pass NULL(here None) to this parameter
             None)
-        print('test')
         return self._AONwrittenC.value
 
     def cavity_set_position(self, pos=None):

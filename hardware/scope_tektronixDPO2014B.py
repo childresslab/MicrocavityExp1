@@ -45,16 +45,40 @@ class Scope(Base, ScopeInterface):
         return
 
     def set_time_scale(self, division):
+        '''
+        Set the time on the for one division
+
+
+        :param division:
+        :return:
+        '''
+        #FIXME: Only certain values are alloed!
+
         self.scope.write('HORizontal:Scale {}'.format(division))
 
+    def set_acquisition_time(self, acquisition_time):
+        '''
+        Sets the total time on the horisontal axis on the scope
+
+        :param acquisition_time:
+        :return:
+        '''
+        division = acquisition_time / 10
+        self.set_time_scale(division)
+
     def aquire_data(self):
-        channels = ['CH1', 'CH2', 'CH3']
+        channels = ['CH1', 'CH2', 'CH3', 'CH4']
         volts = np.array([])
         times = np.array([])
         for channel in channels:
             self.scope.write('DATA:SOU {}'.format(channel))
             self.scope.write('DATA:WIDTH 1')
             self.scope.write('DATA:ENC RPB')
+            self.scope.write('HORizontal:RECordlength 1250000')
+            self.scope.write('DATA:Start 1')
+            self.scope.write('DATA:Stop 1250000')
+            self.scope.write('DATA:Resolution FULL')
+
 
             ymult = float(self.scope.ask('WFMPRE:YMULT?'))
             yzero = float(self.scope.ask('WFMPRE:YZERO?'))
@@ -72,8 +96,9 @@ class Scope(Base, ScopeInterface):
             volt = (ADC_wave - yoff) * ymult + yzero
             time = np.arange(0, xincr * len(volt), xincr)
 
-            volts = np.concatenate([volts, volt])
-            times = np.concatenate([times, time])
+            #2000: to get rid of wired start from scope
+            volts = np.concatenate([volts, volt[2000:]])
+            times = np.concatenate([times, time[2000:]])
 
         return times, volts
 
