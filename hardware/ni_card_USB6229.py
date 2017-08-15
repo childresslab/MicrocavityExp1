@@ -1503,7 +1503,7 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
 
         # Generate ramp signal
         t = np.linspace(0, 1, self.SampNum)
-        data = self.ramp_function(t, amp, off, freq, phase=0)
+        data = self.ramp_function(t, amp, off, freq, t0=0)
 
         # Create task for ramp signal
         self._ramp_task = daq.TaskHandle()
