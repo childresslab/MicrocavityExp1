@@ -1,12 +1,11 @@
 
 from qtpy import QtCore
 from collections import OrderedDict
-from copy import copy
 import datetime
 import numpy as np
 import os
+from itertools import product
 from time import sleep, time
-import matplotlib as mpl
 import matplotlib.pyplot as plt
 from io import BytesIO
 
@@ -65,6 +64,9 @@ class CavityLogic(GenericLogic):
         self._acqusition_time = 2.0
         self.ramp_channel = 1
         self.reflection_channel = 0
+        self.strain_guage_channel_pos = 3
+        self.SG_scale = 10 # V
+        self.lamb = 637e-9 # wavelenght
 
         self._current_filepath = r'C:\Users\ChildressLab\Desktop\Rasmus notes\Measurements'
 
@@ -75,6 +77,7 @@ class CavityLogic(GenericLogic):
         self._scope = self.get_connector('scope')
         self._save_logic = self.get_connector('savelogic')
 
+        self.cavity_range = self._ni._cavity_position_range[1] - self._ni._cavity_position_range[0]
         # Reads in the maximal scanning range. The unit of that scan range is micrometer!
         #self.x_range = self._scanning_device.get_position_range()[0]
         #self.y_range = self._scanning_device.get_position_range()[1]
@@ -123,18 +126,36 @@ class CavityLogic(GenericLogic):
 
         :return:
         '''
-        total_trace = self._acqusition_time  # sec
-        ramp_period = 1 / self._full_sweep_freq # sec
+        total_trace = self.time[-1]-self.time[0]  # sec
+        ramp_period = 1.0 / self._full_sweep_freq # sec
         period_index = len(self.time) * ramp_period / total_trace
         ramp_mid = np.argmin(self.volts[self.ramp_channel])
 
         low_index = ramp_mid - int(period_index / 2)
         high_index = ramp_mid + int(period_index / 2)
 
-        self.volts_trim = self.volts[:, low_index:high_index]
-        self.time_trim = self.time[low_index:high_index]
+        self.volts_trim = self.volts[:, low_index:high_index+1]
+        self.time_trim = self.time[low_index:high_index+1]
 
         return 0
+
+    def _data_split_up(self):
+        [self.RampUp_time, self.RampDown_time] = np.array_split(self.time_trim, 2)
+        [self.RampUp_signalR, self.RampDown_signalR] = np.array_split(self.volts_trim[self.reflection_channel], 2)
+        [self.RampUp_signalNI, self.RampDown_signalNI] = np.array_split(self.volts_trim[self.ramp_channel], 2)
+        [self.RampUp_signalSG, self.RampDown_signalSG] = np.array_split(self.volts_trim[self.strain_guage_channel_pos], 2)
+
+        return 0
+
+    def _polyfit_SG(self, order=2, plot=False):
+        xdata = self.RampUp_time
+        ydata = self.RampUp_signalSG
+        p4 = np.poly1d(np.polyfit(xdata, ydata, order))
+        self.RampUp_signalSG_polyfit = p4(xdata)
+
+        if plot is True:
+            plt.plot(xdata, ydata, '-', xdata, p4(xdata), '--')
+            plt.show()
 
     def _fit_ramp(self):
         # Fitting setup
@@ -187,17 +208,7 @@ class CavityLogic(GenericLogic):
         with open(os.path.join(self._current_filepath, self._current_filename), 'wb') as file:
             np.savetxt(file, data, fmt=fmt, delimiter=delimiter, header=header, comments=comments)
 
-    def _low_pass(self, x, N=2, Wn=0.01):
-        # First, design the Buterworth filter
-        # N   # Filter order
-        # Wn  # Cutoff frequency
-        B, A = signal.butter(N, Wn, output='ba')
-
-        # Second, apply the filter
-        xp = signal.filtfilt(B, A, x)
-        return (xp)
-
-    def _detect_peaks(self, x, mph=None, mpd=1, threshold=0, edge='rising',
+    def _detect_peaks(self, x, y=None, mph=None, mpd=1, threshold=0, edge='rising',
                      kpsh=False, valley=False, show=False, ax=None):
 
         """Detect peaks in data based on their amplitude and other features.
@@ -284,14 +295,18 @@ class CavityLogic(GenericLogic):
             dx = np.min(np.vstack([x[ind] - x[ind - 1], x[ind] - x[ind + 1]]), axis=0)
             ind = np.delete(ind, np.where(dx < threshold)[0])
         # detect small peaks closer than minimum peak distance
-        if ind.size and mpd > 1:
+        if ind.size and mpd > 0:
             ind = ind[np.argsort(x[ind])][::-1]  # sort ind by peak height
             idel = np.zeros(ind.size, dtype=bool)
             for i in range(ind.size):
                 if not idel[i]:
                     # keep peaks with the same height if kpsh is True
-                    idel = idel | (ind >= ind[i] - mpd) & (ind <= ind[i] + mpd) \
-                                  & (x[ind[i]] > x[ind] if kpsh else True)
+                    if y is not None:
+                        idel = idel | (y[ind] >= y[ind[i]] - mpd) & (y[ind] <= y[ind[i]] + mpd) \
+                                      & (x[ind[i]] > x[ind] if kpsh else True)
+                    else:
+                        idel = idel | (ind >= ind[i] - mpd) & (ind <= ind[i] + mpd) \
+                                      & (x[ind[i]] > x[ind] if kpsh else True)
                     idel[i] = 0  # Keep current peak
             # remove the small peaks and sort back the indices by their occurrence
             ind = np.sort(ind[~idel])
@@ -333,3 +348,87 @@ class CavityLogic(GenericLogic):
                          % (mode, str(mph), mpd, str(threshold), edge))
             # plt.grid()
             plt.show()
+
+    def _update_peaks_distance(self, peaks):
+        delta_peaks = self.RampUp_signalSG_polyfit[peaks[1:]] - self.RampUp_signalSG_polyfit[peaks[:-1]]
+        return delta_peaks
+
+    def _check_for_outliers(self, peaks, outlier_cutoff):
+        # Full range of NanoMax
+
+        # Expected fsr in voltage used to
+        one_fsr = self.SG_scale / self.cavity_range * (self.lamb / 2.0)  # in Volt
+
+        delta_peaks = self._update_peaks_distance(peaks)
+
+        outliers = np.where(delta_peaks > outlier_cutoff * one_fsr)[0]
+
+        if outliers.size > 0:
+            return outliers
+        else:
+            return np.array([])
+
+    def _peak_search(self, outlier_cutoff = 1.5, show=False):
+        # minimum peak height
+        mph = -(self.RampUp_signalR.mean() - np.abs(
+            self.RampUp_signalR.max() - self.RampUp_signalR.mean()))
+        # minimum peak distance
+        one_fsr = self.SG_scale / self.cavity_range * (self.lamb / 2.0)  # in Volt
+        MaxNumPeak = int((self.RampUp_signalSG.max() - self.RampUp_signalSG.min()) / one_fsr) + 10
+
+        contrast = np.abs(self.RampUp_signalR.min() - self.RampUp_signalR.mean())
+
+        errors = [0.75, 0.8, 0.85, 0.9, 0.95]
+        constants = np.linspace(0.0, 0.1, 10)
+
+        OutlierList = []
+        ErrorList = []
+        ConstantList = []
+
+        for error, constant in product(errors, constants):
+            # Search for the parameters with least outliers
+            mpd = error * one_fsr
+            threshold = constant * contrast
+            resonances = self._detect_peaks(self.RampUp_signalR, y=self.RampUp_signalSG_polyfit,
+                                                   mph=mph, mpd=mpd, threshold=threshold, valley=True, show=False)
+            outliers = self._check_for_outliers(resonances, outlier_cutoff=outlier_cutoff)
+
+            # Check to see if there is too many resonances
+            if len(resonances) < MaxNumPeak:
+                OutlierList.append(len(outliers))
+                ErrorList.append(error)
+                ConstantList.append(constant)
+
+        OptimalError = ErrorList[np.argmin(OutlierList)]
+        OptimalConstant = ConstantList[np.argmin(OutlierList)]
+
+        mpd = OptimalError * one_fsr
+        threshold = OptimalConstant * contrast
+
+        resonances = self._detect_peaks(self.RampUp_signalR, y=self.RampUp_signalSG_polyfit,
+                                               mph=mph, mpd=mpd, threshold=threshold, valley=True, show=show)
+
+        return resonances
+
+    def _find_missing_resonances(self, resonances, outlier_cutoff=1.5):
+        corrected_resonances = resonances
+        i = 0
+        while i < int(1 / 4 * len(resonances)):
+            outliers = self._check_for_outliers(resonances, outlier_cutoff)
+            i += 1
+            if len(outliers) > 0:
+                outlier = outliers[0]
+
+                delta_peaks = self._update_peaks_distance(resonances)
+
+                value = self.RampUp_signalSG_polyfit[resonances[outlier]] + np.median(delta_peaks)
+                # insert new peak in new corrected array
+                corrected_resonances = np.insert(corrected_resonances, outlier + 1,
+                                       abs(self.RampUp_signalSG_polyfit - value).argmin())
+
+            else:
+                # found no new peaks
+                break
+
+        return corrected_resonances
+

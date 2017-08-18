@@ -46,7 +46,7 @@ class ConfocalScannerDummy(Base, ConfocalScannerInterface):
         # Internal parameters
         self._line_length = None
         self._voltage_range = [-10, 10]
-
+        self._cavity_position_range = [0, 20e-6]
         self._position_range = [[0, 100e-6], [0, 100e-6], [0, 100e-6], [0, 1e-6]]
         self._current_position = [0, 0, 0, 0][0:len(self.get_scanner_axes())]
         self._num_points = 500
@@ -428,4 +428,16 @@ class ConfocalScannerDummy(Base, ConfocalScannerInterface):
         gaussian = amplitude*np.exp(-(x_data-x_zero)**2/(2*sigma**2))+offset
         return gaussian
 
-
+    def sweep_function(self, time, start, stop, freq, t0):
+        ''' Creating data array for NIcard with sweep singal '''
+        # array for output
+        f = np.zeros(len(time))
+        period = 1 / freq
+        tprime = time - t0
+        slope = (stop - start) / (period / 2)
+        for i in range(len(time)):
+            if tprime[i] % period < (1 / 2) * period:
+                f[i] = slope * (tprime[i] % period) + start
+            else:
+                f[i] = - slope * (tprime[i] % period) + 2 * stop - start
+        return f
