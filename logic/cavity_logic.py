@@ -175,9 +175,19 @@ class CavityLogic(GenericLogic):
         self._ni.set_up_sweep(self._full_sweep_start, self._full_sweep_stop, self._full_sweep_freq, RepOfSweep)
         self._scope.set_acquisition_time(self._acqusition_time)
 
+        # HARD CODED!!!!! ARGHH!!!
+        self._scope.set_vertical_scale(2, 500e-3)
+        self._scope.set_vertical_position(2, 3500e-3)
+        self._scope.set_vertical_scale(3, 5e-3)
+        self._scope.set_vertical_position(3, 0)
+        self._scope.set_vertical_scale(4, 2)
+        self._scope.set_vertical_position(4, -2.5)
+
         #start sweep
+        self._scope.stop_acquisition()
+        self._scope.set_egde_trigger(channel=2, level=-2.6)
         self._scope.run_single()
-        sleep(0.4)
+        self._scope.run_continuous()
         self._ni.start_sweep()
 
         #stop sweep
@@ -191,6 +201,14 @@ class CavityLogic(GenericLogic):
         self.times = times.reshape(4, int(len(times) / 4))
         self.time = self.times[0]
 
+    def _linewidth_get_data(self):
+        self._scope.run_single()
+
+        nu_times, nu_volts = self._scope.aquire_data()
+        nu_times = nu_times.reshape(4, int(len(nu_times) / 4))
+        self.nu_volts = nu_volts.reshape(4, int(len(nu_volts) / 4))
+        self.nu_time = nu_times[0]
+
     def _save_raw_data(self):
         date = datetime.datetime.fromtimestamp(time()).strftime('%Y-%m-%d_%H%M%S')
         self._current_filename = date + '_full_sweep_data.dat'
@@ -201,6 +219,10 @@ class CavityLogic(GenericLogic):
         header = ''
         delimiter = '\t'
         comments = '#'
+
+    def _linewidth_save_data(self):
+
+
 
         with open(os.path.join(self._current_filepath, self._current_filename), 'wb') as file:
             np.savetxt(file, data, fmt=fmt, delimiter=delimiter, header=header, comments=comments)

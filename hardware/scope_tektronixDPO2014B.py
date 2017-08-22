@@ -105,22 +105,19 @@ class Scope(Base, ScopeInterface):
     # General functionn
 
     def run_continuous(self):
-        if self.single is True:
-            self.scope.write('ACQuire:STOPAfter runstop')
-            self.single = False
-
         self.scope.write(':ACQuire:STATE on')
 
     def stop_acquisition(self):
         self.scope.write(':ACQuire:STATE off')
 
     def run_single(self):
-        if self.single is True:
-            self.scope.write(':ACQuire:STATE on')
-        else:
-            self.scope.write('ACQuire:STOPAfter SEQ')
-            self.single = True
-            self.scope.write(':ACQuire:STATE on')
+        #if self.single is True:
+        #    self.scope.write(':ACQuire:STATE on')
+        #else:
+        #    self.scope.write('ACQuire:STOPAfter SEQ')
+        #    self.single = True
+        #    self.scope.write(':ACQuire:STATE on')
+        self.scope.write('ACQuire:STOPAfter SEQ')
 
     def set_egde_trigger(self, channel, level, slope = 'Rise'):
 
@@ -133,5 +130,5 @@ class Scope(Base, ScopeInterface):
     def set_vertical_scale(self, channel, scale):
         self.scope.write('CH{}:Scale {}'.format(channel, scale))
 
-    def set_vertical_position(self, channel, scale):
-        self.scope.write('CH{}:Position {}'.format(channel, scale))
+    def set_vertical_position(self, channel, position):
+        self.scope.write('CH{}:Position {}'.format(channel, position))
