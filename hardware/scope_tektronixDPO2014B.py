@@ -122,4 +122,16 @@ class Scope(Base, ScopeInterface):
             self.single = True
             self.scope.write(':ACQuire:STATE on')
 
+    def set_egde_trigger(self, channel, level, slope = 'Rise'):
 
+        self.scope.write('Trigger:A:Type Edge')
+        self.scope.write('Trigger:A:Coupling DC')
+        self.scope.write('Trigger:A:Edge:Slope '+ slope)
+        self.scope.write('Trigger:A:Edge:Source CH{}'.format(channel))
+        self.scope.write('Trigger:A:Level:CH{} {}'.format(channel, level))
+
+    def set_vertical_scale(self, channel, scale):
+        self.scope.write('CH{}:Scale {}'.format(channel, scale))
+
+    def set_vertical_position(self, channel, scale):
+        self.scope.write('CH{}:Position {}'.format(channel, scale))

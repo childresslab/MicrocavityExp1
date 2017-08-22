@@ -62,9 +62,10 @@ class CavityLogic(GenericLogic):
         self._full_sweep_start = 0.0
         self._full_sweep_stop = -3.75
         self._acqusition_time = 2.0
-        self.ramp_channel = 1
         self.reflection_channel = 0
-        self.strain_guage_channel_pos = 3
+        self.ramp_channel = 1
+        self.position_channel = 3
+        self.velocity_channel = 2
         self.SG_scale = 10 # V
         self.lamb = 637e-9 # wavelenght
 
@@ -78,18 +79,7 @@ class CavityLogic(GenericLogic):
         self._save_logic = self.get_connector('savelogic')
 
         self.cavity_range = self._ni._cavity_position_range[1] - self._ni._cavity_position_range[0]
-        # Reads in the maximal scanning range. The unit of that scan range is micrometer!
-        #self.x_range = self._scanning_device.get_position_range()[0]
-        #self.y_range = self._scanning_device.get_position_range()[1]
-        #self.z_range = self._scanning_device.get_position_range()[2]
 
-
-        # Sets connections between signals and functions
-        #self.signal_scan_lines_next.connect(self._scan_line, QtCore.Qt.QueuedConnection)
-        #self.signal_start_scanning.connect(self.start_scanner, QtCore.Qt.QueuedConnection)
-        #self.signal_continue_scanning.connect(self.continue_scanner, QtCore.Qt.QueuedConnection)
-
-        #self._change_position('activation')
 
     def on_deactivate(self):
         """ Reverse steps of activation
@@ -120,32 +110,39 @@ class CavityLogic(GenericLogic):
         self.volts = data[1:5]
 
 
-    def _trim_data(self):
+    def _trim_data(self, time, volts):
         '''
         Trims data to the ramp
 
         :return:
         '''
-        total_trace = self.time[-1]-self.time[0]  # sec
+        total_trace = time[-1]-time[0]  # sec
         ramp_period = 1.0 / self._full_sweep_freq # sec
-        period_index = len(self.time) * ramp_period / total_trace
-        ramp_mid = np.argmin(self.volts[self.ramp_channel])
+        period_index = len(time) * ramp_period / total_trace
+        ramp_mid = np.argmin(volts[self.ramp_channel])
 
         low_index = ramp_mid - int(period_index / 2)
         high_index = ramp_mid + int(period_index / 2)
 
-        self.volts_trim = self.volts[:, low_index:high_index+1]
-        self.time_trim = self.time[low_index:high_index+1]
+        volts_trim = volts[:, low_index:high_index+1]
+        time_trim = time[low_index:high_index+1]
 
-        return 0
+        return time_trim, volts_trim
 
     def _data_split_up(self):
         [self.RampUp_time, self.RampDown_time] = np.array_split(self.time_trim, 2)
         [self.RampUp_signalR, self.RampDown_signalR] = np.array_split(self.volts_trim[self.reflection_channel], 2)
         [self.RampUp_signalNI, self.RampDown_signalNI] = np.array_split(self.volts_trim[self.ramp_channel], 2)
-        [self.RampUp_signalSG, self.RampDown_signalSG] = np.array_split(self.volts_trim[self.strain_guage_channel_pos], 2)
+        [self.RampUp_signalSG, self.RampDown_signalSG] = np.array_split(self.volts_trim[self.position_channel], 2)
+        [self.RampUp_signalSG_v, self.RampDown_signalSG_v] = np.array_split(self.volts_trim[self.velocity_channel],2)
+        return 0
+
+    def _get_ramp_up_signgals(self):
+        self.time_trim, self.volts_trim = self._trim_data(self.time, self.volts)
+        self._data_split_up()
 
         return 0
+
 
     def _polyfit_SG(self, order=2, plot=False):
         xdata = self.RampUp_time
@@ -368,15 +365,15 @@ class CavityLogic(GenericLogic):
         else:
             return np.array([])
 
-    def _peak_search(self, outlier_cutoff = 1.5, show=False):
+    def _peak_search(self, signal, outlier_cutoff = 1.5, show=False):
         # minimum peak height
-        mph = -(self.RampUp_signalR.mean() - np.abs(
-            self.RampUp_signalR.max() - self.RampUp_signalR.mean()))
+        mph = -(signal.mean() - np.abs(
+            signal.max() - signal.mean()))
         # minimum peak distance
         one_fsr = self.SG_scale / self.cavity_range * (self.lamb / 2.0)  # in Volt
         MaxNumPeak = int((self.RampUp_signalSG.max() - self.RampUp_signalSG.min()) / one_fsr) + 10
 
-        contrast = np.abs(self.RampUp_signalR.min() - self.RampUp_signalR.mean())
+        contrast = np.abs(signal.min() - signal.mean())
 
         errors = [0.75, 0.8, 0.85, 0.9, 0.95]
         constants = np.linspace(0.0, 0.1, 10)
@@ -389,7 +386,7 @@ class CavityLogic(GenericLogic):
             # Search for the parameters with least outliers
             mpd = error * one_fsr
             threshold = constant * contrast
-            resonances = self._detect_peaks(self.RampUp_signalR, y=self.RampUp_signalSG_polyfit,
+            resonances = self._detect_peaks(signal, y=self.RampUp_signalSG_polyfit,
                                                    mph=mph, mpd=mpd, threshold=threshold, valley=True, show=False)
             outliers = self._check_for_outliers(resonances, outlier_cutoff=outlier_cutoff)
 
@@ -405,7 +402,7 @@ class CavityLogic(GenericLogic):
         mpd = OptimalError * one_fsr
         threshold = OptimalConstant * contrast
 
-        resonances = self._detect_peaks(self.RampUp_signalR, y=self.RampUp_signalSG_polyfit,
+        resonances = self._detect_peaks(signal, y=self.RampUp_signalSG_polyfit,
                                                mph=mph, mpd=mpd, threshold=threshold, valley=True, show=show)
 
         return resonances
