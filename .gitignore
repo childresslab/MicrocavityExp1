@@ -27,3 +27,12 @@
 # log files
 *.log
 *.log.*
+2017-08-15_144400_full_sweep_data_calibrationOfStage.dat
+2017-08-15_150436_full_sweep_data_calibration2.dat
+2017-08-15_151042_full_sweep_data.dat
+2017-08-15_151505_full_sweep_data.dat
+2017-08-15_151553_full_sweep_data.dat
+2017-08-15_151659_full_sweep_data.dat
+tools/.ipynb_checkpoints/Finesse_Measurement-checkpoint.ipynb
+tools/.ipynb_checkpoints/Match vectors-checkpoint.ipynb
+tools/.ipynb_checkpoints/Quick Data plotting-checkpoint.ipynb
