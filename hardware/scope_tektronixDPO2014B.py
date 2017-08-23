@@ -29,7 +29,7 @@ class Scope(Base, ScopeInterface):
         """
         config = self.getConfiguration()
         self.scope = self.rm.open_resource(self.res[0])
-        self.scope.timeout = 1000
+        self.scope.timeout = 1000 # ms
         self.scope.read_termination = None
         self.scope.write_termination = '\n'
         print('Connected to ' + self.scope.query('*IDN?'))
@@ -94,30 +94,29 @@ class Scope(Base, ScopeInterface):
             ADC_wave = np.array(unpack('%sB' % len(ADC_wave), ADC_wave))
 
             volt = (ADC_wave - yoff) * ymult + yzero
-            time = np.arange(0, xincr * len(volt), xincr)
-
+            #time = np.arange(0, xincr * len(volt), xincr)
+            time = np.linspace(0, xincr * (len(volt)-1),len(volt))
             #2000: to get rid of wired start from scope
-            volts = np.concatenate([volts, volt[2000:]])
-            times = np.concatenate([times, time[2000:]])
+            volts = np.concatenate([volts, volt])
+            times = np.concatenate([times, time])
 
         return times, volts
 
     # General functionn
 
     def run_continuous(self):
+        self.scope.write('ACQuire:STOPAfter Runstop')
         self.scope.write(':ACQuire:STATE on')
+
 
     def stop_acquisition(self):
         self.scope.write(':ACQuire:STATE off')
 
     def run_single(self):
-        #if self.single is True:
-        #    self.scope.write(':ACQuire:STATE on')
-        #else:
-        #    self.scope.write('ACQuire:STOPAfter SEQ')
-        #    self.single = True
-        #    self.scope.write(':ACQuire:STATE on')
+        self.scope.write(':ACQuire:STATE off')
         self.scope.write('ACQuire:STOPAfter SEQ')
+        self.scope.write(':ACQuire:STATE on')
+
 
     def set_egde_trigger(self, channel, level, slope = 'Rise'):
 
@@ -126,6 +125,7 @@ class Scope(Base, ScopeInterface):
         self.scope.write('Trigger:A:Edge:Slope '+ slope)
         self.scope.write('Trigger:A:Edge:Source CH{}'.format(channel))
         self.scope.write('Trigger:A:Level:CH{} {}'.format(channel, level))
+        self.scope.write('HORizontal:DELay:TIMe 0.0')
 
     def set_vertical_scale(self, channel, scale):
         self.scope.write('CH{}:Scale {}'.format(channel, scale))

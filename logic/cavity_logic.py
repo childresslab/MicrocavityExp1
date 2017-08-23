@@ -185,10 +185,13 @@ class CavityLogic(GenericLogic):
 
         #start sweep
         self._scope.stop_acquisition()
-        self._scope.set_egde_trigger(channel=2, level=-2.6)
+        #self._scope.set_egde_trigger(channel=2, level=-3.0)
+
+        #
         self._scope.run_single()
-        self._scope.run_continuous()
+        sleep(0.5)
         self._ni.start_sweep()
+
 
         #stop sweep
         sleep(self._acqusition_time)
@@ -197,16 +200,19 @@ class CavityLogic(GenericLogic):
 
     def _get_scope_data(self):
         times, volts = self._scope.aquire_data()
-        self.volts = volts.reshape(4, int(len(volts) / 4))
-        self.times = times.reshape(4, int(len(times) / 4))
-        self.time = self.times[0]
+        volts = volts.reshape(4, int(len(volts) / 4))
+        times = times.reshape(4, int(len(times) / 4))
+        time = times[0]
+
+        self.volts = volts[:,2000:]
+        self.time = time[2000:]
 
     def _linewidth_get_data(self):
         self._scope.run_single()
 
-        nu_times, nu_volts = self._scope.aquire_data()
+        nu_times, self.nu_volts = self._scope.aquire_data()
         nu_times = nu_times.reshape(4, int(len(nu_times) / 4))
-        self.nu_volts = nu_volts.reshape(4, int(len(nu_volts) / 4))
+        #self.nu_volts = nu_volts.reshape(4, int(len(nu_volts) / 4))
         self.nu_time = nu_times[0]
 
     def _save_raw_data(self):
@@ -220,9 +226,19 @@ class CavityLogic(GenericLogic):
         delimiter = '\t'
         comments = '#'
 
+        with open(os.path.join(self._current_filepath, self._current_filename), 'wb') as file:
+            np.savetxt(file, data, fmt=fmt, delimiter=delimiter, header=header, comments=comments)
+
     def _linewidth_save_data(self):
+        date = datetime.datetime.fromtimestamp(time()).strftime('%Y-%m-%d_%H%M%S')
+        self._current_filename = date + 'linewidth_data.dat'
 
-
+        data = np.hstack([self.nu_time_list, self.nu_volts_list])
+        #data = data.reshape(5, int(len(data) / 5))
+        fmt = '%.15e'
+        header = ''
+        delimiter = '\t'
+        comments = '#'
 
         with open(os.path.join(self._current_filepath, self._current_filename), 'wb') as file:
             np.savetxt(file, data, fmt=fmt, delimiter=delimiter, header=header, comments=comments)
@@ -387,7 +403,7 @@ class CavityLogic(GenericLogic):
         else:
             return np.array([])
 
-    def _peak_search(self, signal, outlier_cutoff = 1.5, show=False):
+    def _peak_search(self, signal, outlier_cutoff=1.5, show=False):
         # minimum peak height
         mph = -(signal.mean() - np.abs(
             signal.max() - signal.mean()))
