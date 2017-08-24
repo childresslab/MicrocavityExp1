@@ -75,7 +75,7 @@ class CavityLogic(GenericLogic):
         self.first_corrected_resonances = None
         self.t_delay_list = []
 
-        self._current_filepath = r'C:\Users\ChildressLab\Desktop\Rasmus notes\Measurements'
+        self._current_filepath = r'C:\BittorrentSyncDrive\Personal - Rasmus\Rasmus notes\Measurements'
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
@@ -134,7 +134,6 @@ class CavityLogic(GenericLogic):
         # stop sweep
         # HARD CODED!!!!! ARGHH!!!
         sleep(self._acqusition_time)
-        self._ni.stop_sweep()
         self._ni.close_sweep()
 
         return 0
@@ -166,19 +165,33 @@ class CavityLogic(GenericLogic):
         if sweep_number is None:
             sweep_number = self.current_sweep_number
 
-        self.start_full_sweep()
-        self._get_scope_data()
-        self._get_ramp_up_signgals()
+        try_num = 1
+        while True:
+            try:
+                self.start_full_sweep()
+                self._get_scope_data()
+                self._get_ramp_up_signgals()
 
-        # Every 10 to speed up the fit
-        self.RampUp_signalSG_polyfit = self._polyfit_SG(xdata=self.RampUp_time,ydata=self.RampUp_signalSG,
+                # Every 10 to speed up the fit
+                self.RampUp_signalSG_polyfit = self._polyfit_SG(xdata=self.RampUp_time,ydata=self.RampUp_signalSG,
                                                         order=3, plot=False)
+                break
+            except:
+                #Did not get the fulle sweep
+                if try_num < 3:
+                    try_num += 1
+                    continue
+                else:
+                    break
+                    self.log.error('Cant get full sweep data!')
+
         resonances = self._peak_search(self.RampUp_signalR)
         corrected_resonances = self._find_missing_resonances(resonances)
 
         if sweep_number == 1:
             self.first_sweep = self.RampUp_signalR
             self.first_corrected_resonances = corrected_resonances
+            self.first_RampUp_signalSG_polyfit = self.RampUp_signalSG_polyfit
 
         self.current_sweep_number += 1
         self._save_raw_data(label='_full_sweep_{}_data'.format(sweep_number))
@@ -227,7 +240,7 @@ class CavityLogic(GenericLogic):
 
         return self.t_delay_list
 
-    def get_target_mode(self, resonances):
+    def get_target_mode(self, resonances, plot=False):
 
         # Find phase difference
         t_delay_list = self.match_n_and_first_sweep(self.first_corrected_resonances)
@@ -237,6 +250,18 @@ class CavityLogic(GenericLogic):
         closest_mode = np.argmin(np.abs(resonances - new_index))
 
         target_mode = closest_mode
+
+        if plot is True:
+            index = self.first_corrected_resonances[self.current_mode_number]
+            new_index = resonances[closest_mode]
+            plt.plot(self.first_RampUp_signalSG_polyfit, self.first_sweep)
+            plt.plot(self.first_RampUp_signalSG_polyfit[index], self.first_sweep[index], 'o', markersize=10, color='r')
+            plt.plot(self.RampUp_signalSG_polyfit, self.RampUp_signalR)
+            plt.plot(self.RampUp_signalSG_polyfit[new_index], self.RampUp_signalR[new_index], 'x',
+                     markersize=20, color='r')
+            plt.grid()
+            plt.show()
+
 
         return target_mode
 ##################################### TARGET MODE END ###################################################
@@ -334,8 +359,9 @@ class CavityLogic(GenericLogic):
         offset = modes[target_mode]
 
         # Setup scope for linewidth measurements with trigger on ramp signal
-        contrast = abs(self.RampUp_signalR[self.first_corrected_resonances].mean() - np.median(self.RampUp_signalR))
-        level = np.median(self.RampUp_signalR) - 0.95 * contrast
+        contrast = abs(self.RampUp_signalR.min() - np.median(self.RampUp_signalR))
+        k = 1.0
+        level = np.median(self.RampUp_signalR) - k * contrast
 
         # sets up scope window for linewidth measurement
         #Triggers on resonance
@@ -349,34 +375,35 @@ class CavityLogic(GenericLogic):
         self.linewidth_volts_list = np.array([])
 
         # Get data from scope
-        k = 1.0
+
         for i in range(repeat):
+            k = 1.0
             while True:
-                k -= 0.05
-                if k < 0.1:
+                if k < 0.01:
                     print('did not find resonance')
                     break
+                # Operation complete question
+                self._scope.scope.write('*OPC?')
+                # if triggered then get data
                 try:
-                    # Operation complete question
-                    self._scope.scope.write('*OPC?')
-                    # if triggered then get data
-                    if self._scope.scope.read() == '1\n':
+                    if self._scope.scope.read() == r'1\n':
                         self._linewidth_get_data()
                         break
                 except:
                     # if not tiggered then raise trigger level and try again
+                    k -= 0.05
                     level = np.median(self.RampUp_signalR) - k * contrast
                     self._scope.set_egde_trigger(channel=1, level=level)
-
+                    continue
 
             self.linewidth_time_list = np.concatenate([self.linewidth_time_list, self.linewidth_time])
             self.linewidth_volts_list = np.concatenate([self.linewidth_volts_list, self.linewidth_volts])
 
         #close ramp
         self._ni.stop_ramp()
-        self._ni.stop_ramp()
+        self._ni.close_ramp()
 
-        self._linewidth_save_data()
+        self._linewidth_save_data(label='_{}'.format(self.current_mode_number))
 
         return 0
 
@@ -654,7 +681,7 @@ class CavityLogic(GenericLogic):
 
         data = np.vstack([self.time, self.volts])
 
-        fmt = '%.15e'
+        fmt = '%.8e'
         header = ''
         delimiter = '\t'
         comments = '#'
@@ -662,13 +689,13 @@ class CavityLogic(GenericLogic):
         with open(os.path.join(self._current_filepath, self._current_filename), 'wb') as file:
             np.savetxt(file, data, fmt=fmt, delimiter=delimiter, header=header, comments=comments)
 
-    def _linewidth_save_data(self):
+    def _linewidth_save_data(self, label):
         date = datetime.datetime.fromtimestamp(time()).strftime('%Y-%m-%d_%H%M%S')
-        self._current_filename = date + 'linewidth_data.dat'
+        self._current_filename = date + label  +'_linewidth_data.dat'
 
         data = np.hstack([self.linewidth_time_list, self.linewidth_volts_list])
         # data = data.reshape(5, int(len(data) / 5))
-        fmt = '%.15e'
+        fmt = '%.8e'
         header = ''
         delimiter = '\t'
         comments = '#'

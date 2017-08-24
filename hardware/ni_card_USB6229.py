@@ -1583,7 +1583,7 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
     def sweep_function(self, time, start, stop, freq, t0):
         ''' Creating data array for NIcard with sweep singal '''
         # array for output
-        f = np.zeros(len(time))
+        f = np.zeros(len(time), dtype=np.float64)
         period = 1 / freq
         tprime = time - t0
         slope = (stop - start) / (period / 2)
@@ -1599,6 +1599,17 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
 
         t = np.linspace(0, 1/freq, self.SampNum)
         data = self.sweep_function(t, start_voltage, stop_voltage, freq, t0=0)
+
+
+        if self._sweep_task is not None:
+            # stop the analog output task
+            daq.DAQmxStopTask(self._sweep_task)
+
+            # delete the configuration of the analog output
+            daq.DAQmxClearTask(self._sweep_task)
+
+            # set the task handle to None as a safety
+            self._sweep_task = None
 
         self._sweep_task = daq.TaskHandle()
         daq.DAQmxCreateTask('sweep_task', daq.byref(self._sweep_task))
