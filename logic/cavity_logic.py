@@ -68,6 +68,12 @@ class CavityLogic(GenericLogic):
         self.velocity_channel = 2
         self.SG_scale = 10 # V
         self.lamb = 637e-9 # wavelenght
+        self.current_mode_number = 10
+        self.current_sweep_number = 1
+
+        self.first_sweep = None
+        self.first_corrected_resonances = None
+        self.t_delay_list = []
 
         self._current_filepath = r'C:\Users\ChildressLab\Desktop\Rasmus notes\Measurements'
 
@@ -87,45 +93,172 @@ class CavityLogic(GenericLogic):
         @return int: error code (0:OK, -1:error)
         """
 
-    def _load_full_sweep(self, filepath = None, filename = None):
+##################################### FULL SWEEPS START ##################################################
+
+
+    def start_full_sweep(self):
         '''
-        Loads data from full sweep
+        Starts a single full sweep
 
-        :param filepath:
-        :param filename:
-        :return:
+        1. sets up a single ramp 
+        2. set up the scope for a full sweep
+        3. executes the sweep
+        4. closed sweep
+
+
+        :return: 
         '''
-        delimiter = '\t'
 
-        if filepath is None:
-            filepath = self._current_filepath
+        # One full sweep
+        RepOfSweep = 1
 
-        if filename is None:
-            filename = self._current_filename
+        # set up ni card for full sweep
+        self._ni.set_up_sweep(self._full_sweep_start, self._full_sweep_stop, self._full_sweep_freq, RepOfSweep)
 
-        with open(os.path.join(filepath, filename), 'rb') as file:
-            data = np.loadtxt(file, delimiter=delimiter)
+        # Set up scope for full sweep
+        self._scope.set_acquisition_time(self._acqusition_time)
+        # HARD CODED!!!!! ARGHH!!!
+        self._scope.set_vertical_scale(2, 500e-3)
+        self._scope.set_vertical_position(2, 3500e-3)
+        self._scope.set_vertical_scale(3, 5e-3)
+        self._scope.set_vertical_position(3, 0)
+        self._scope.set_vertical_scale(4, 2)
+        self._scope.set_vertical_position(4, -2.5)
 
-        self.time = data[0]
-        self.volts = data[1:5]
+        # start sweep
+        self._scope.run_single()
+        # HARD CODED!!!!! ARGHH!!!
+        sleep(0.5)
+        self._ni.start_sweep()
+
+        # stop sweep
+        # HARD CODED!!!!! ARGHH!!!
+        sleep(self._acqusition_time)
+        self._ni.stop_sweep()
+        self._ni.close_sweep()
+
+        return 0
+
+    def _get_scope_data(self):
+        '''
+        Get scope data for all four channels
+
+        This is loaded into self.volts and self.time
+
+        :return: 
+        '''
+        times, volts = self._scope.aquire_data()
+        volts = volts.reshape(4, int(len(volts) / 4))
+        times = times.reshape(4, int(len(times) / 4))
+        time = times[0]
+
+        # First point hare not good! Scope outputs 0 or maybe a header
+        self.volts = volts[:, 2000:]
+        self.time = time[2000:]
+
+    def get_nth_full_sweep(self, sweep_number=None):
+        '''
+
+        :param sweep_number: 
+        :return: 
+        '''
+
+        if sweep_number is None:
+            sweep_number = self.current_sweep_number
+
+        self.start_full_sweep()
+        self._get_scope_data()
+        self._get_ramp_up_signgals()
+
+        # Every 10 to speed up the fit
+        self.RampUp_signalSG_polyfit = self._polyfit_SG(xdata=self.RampUp_time,ydata=self.RampUp_signalSG,
+                                                        order=3, plot=False)
+        resonances = self._peak_search(self.RampUp_signalR)
+        corrected_resonances = self._find_missing_resonances(resonances)
+
+        if sweep_number == 1:
+            self.first_sweep = self.RampUp_signalR
+            self.first_corrected_resonances = corrected_resonances
+
+        self.current_sweep_number += 1
+        self._save_raw_data(label='_full_sweep_{}_data'.format(sweep_number))
+        return corrected_resonances
+
+##################################### FULL SWEEPS STOP ##################################################
+
+##################################### TARGET MODE START ###################################################
+
+    def find_phase_difference(self, signal_a, signal_b, low=200000, high=300000, show=False):
+        # regularize datasets by subtracting mean and dividing by s.d.
+        signal_a = signal_a - signal_a.mean()
+        signal_a = signal_a / signal_a.std()
+        signal_b = signal_b - signal_b.mean()
+        signal_b = signal_b / signal_b.std()
+
+        signal_a = signal_a[low:high]
+        signal_b = signal_b[low:high]
+
+        # Calculate cross correlation function https://en.wikipedia.org/wiki/Cross-correlation
+        xcorr = np.correlate(signal_a, signal_b, 'same')
+
+        nsamples = signal_a.size
+        dt = np.arange(-nsamples / 2, nsamples / 2, dtype=int)
+
+        # Phase delay
+        t_delay = dt[xcorr.argmax()]
+
+        if show is True:
+            plt.plot(dt, xcorr)
+            plt.show()
+
+        return int(t_delay)
 
 
-    def _trim_data(self, time, volts):
+    def match_n_and_first_sweep(self, resonances):
+        '''
+        
+        :param resonances: 
+        :return: 
+        '''
+        low = resonances[20]
+        high = resonances[-20]
+        self.t_delay_list.append(self.find_phase_difference(self.first_sweep, self.RampUp_signalR, low,
+                                                           high, show=True))
+
+        return self.t_delay_list
+
+    def get_target_mode(self, resonances):
+
+        # Find phase difference
+        t_delay_list = self.match_n_and_first_sweep(self.first_corrected_resonances)
+
+        # Find closets mode
+        new_index = self.first_corrected_resonances[self.current_mode_number] - t_delay_list[-1]
+        closest_mode = np.argmin(np.abs(resonances - new_index))
+
+        target_mode = closest_mode
+
+        return target_mode
+##################################### TARGET MODE END ###################################################
+
+############################################# DATA AQUISITION START #########################################
+
+    def _trim_data(self, times, volts):
         '''
         Trims data to the ramp
 
         :return:
         '''
-        total_trace = time[-1]-time[0]  # sec
+        total_trace = times[-1]-times[0]  # sec
         ramp_period = 1.0 / self._full_sweep_freq # sec
-        period_index = len(time) * ramp_period / total_trace
+        period_index = len(times) * ramp_period / total_trace
         ramp_mid = np.argmin(volts[self.ramp_channel])
 
         low_index = ramp_mid - int(period_index / 2)
         high_index = ramp_mid + int(period_index / 2)
 
         volts_trim = volts[:, low_index:high_index+1]
-        time_trim = time[low_index:high_index+1]
+        time_trim = times[low_index:high_index+1]
 
         return time_trim, volts_trim
 
@@ -140,108 +273,130 @@ class CavityLogic(GenericLogic):
     def _get_ramp_up_signgals(self):
         self.time_trim, self.volts_trim = self._trim_data(self.time, self.volts)
         self._data_split_up()
-
         return 0
+############################################# DATA AQUSITION END ##########################################
 
+############################################# FITTING START ###############################################
+    def _polyfit_SG(self, xdata, ydata, order=3, plot=False):
 
-    def _polyfit_SG(self, order=2, plot=False):
-        xdata = self.RampUp_time
-        ydata = self.RampUp_signalSG
-        p4 = np.poly1d(np.polyfit(xdata, ydata, order))
-        self.RampUp_signalSG_polyfit = p4(xdata)
+        xdata_trim = xdata[::10]
+        ydata_trim = ydata[::10]
+        p_fit = np.poly1d(np.polyfit(xdata_trim, ydata_trim, order))
 
         if plot is True:
-            plt.plot(xdata, ydata, '-', xdata, p4(xdata), '--')
+            plt.plot(xdata, ydata, '-', xdata, p_fit(xdata), '--')
             plt.show()
 
-    def _fit_ramp(self):
+        return p_fit(xdata)
+
+    def _fit_ramp(self, xdata, ydata):
         # Fitting setup
         parameter_guess = [self._full_sweep_start, self._full_sweep_stop,
                            self._full_sweep_freq, self.time_trim[0]]
 
         func = self._ni.sweep_function
-        xdata = self.time_trim
-        ydata = self.volts_trim[self.ramp_channel]
 
         # Actual fitting
         popt, pcov = curve_fit(func, xdata, ydata, parameter_guess)
-        self.popt = popt
+        return popt
+
+#############################################  FITTING END  ##############################################
+
+############################## LINEWIDTH MEASUREMENT ####################################################
+    def setup_scope_for_linewidth(self, trigger_level, acquisition_time, position, scale):
+        '''
+        
+        :param trigger_level: 
+        :param acquisition_time: 
+        :param position: 
+        :param scale: 
+        :return: 
+        '''
+        # Adjust ramp channel:
+        self._scope.set_vertical_scale(channel=2, scale=scale)
+        self._scope.set_vertical_position(channel=2, position=position)
+        self._scope.set_acquisition_time(acquisition_time)
+        self._scope.set_egde_trigger(channel=1, level=trigger_level)
+
+        # FIXME: Adjust position and velocity
+
+    def line_width_measurement(self, modes, target_mode, repeat, freq=40):
+        '''
+        
+        :param Modes: List of NI_card voltages for each resonances
+        :param target_mode: 
+        :param repeat: number of linewidth measurements
+        :param freq: 
+        :return: 
+        '''
+        # Ramp parameters sweep to half the distance to next modes
+        amplitude = abs(modes[target_mode - 1] - modes[target_mode + 1]) / 2.0
+        offset = modes[target_mode]
+
+        # Setup scope for linewidth measurements with trigger on ramp signal
+        contrast = abs(self.RampUp_signalR[self.first_corrected_resonances].mean() - np.median(self.RampUp_signalR))
+        level = np.median(self.RampUp_signalR) - 0.95 * contrast
+
+        # sets up scope window for linewidth measurement
+        #Triggers on resonance
+        self.setup_scope_for_linewidth(trigger_level=level, acquisition_time=100e-6, position=offset, scale=amplitude)
+
+        # start continues ramp
+        self._ni.set_up_ramp_output(amplitude, offset, freq)
+        self._ni.start_ramp()
+
+        self.linewidth_time_list = np.array([])
+        self.linewidth_volts_list = np.array([])
+
+        # Get data from scope
+        k = 1.0
+        for i in range(repeat):
+            while True:
+                k -= 0.05
+                if k < 0.1:
+                    print('did not find resonance')
+                    break
+                try:
+                    # Operation complete question
+                    self._scope.scope.write('*OPC?')
+                    # if triggered then get data
+                    if self._scope.scope.read() == '1\n':
+                        self._linewidth_get_data()
+                        break
+                except:
+                    # if not tiggered then raise trigger level and try again
+                    level = np.median(self.RampUp_signalR) - k * contrast
+                    self._scope.set_egde_trigger(channel=1, level=level)
 
 
-    def start_full_sweep(self):
-        RepOfSweep = 1
+            self.linewidth_time_list = np.concatenate([self.linewidth_time_list, self.linewidth_time])
+            self.linewidth_volts_list = np.concatenate([self.linewidth_volts_list, self.linewidth_volts])
 
-        #set up sweep
-        self._ni.set_up_sweep(self._full_sweep_start, self._full_sweep_stop, self._full_sweep_freq, RepOfSweep)
-        self._scope.set_acquisition_time(self._acqusition_time)
+        #close ramp
+        self._ni.stop_ramp()
+        self._ni.stop_ramp()
 
-        # HARD CODED!!!!! ARGHH!!!
-        self._scope.set_vertical_scale(2, 500e-3)
-        self._scope.set_vertical_position(2, 3500e-3)
-        self._scope.set_vertical_scale(3, 5e-3)
-        self._scope.set_vertical_position(3, 0)
-        self._scope.set_vertical_scale(4, 2)
-        self._scope.set_vertical_position(4, -2.5)
+        self._linewidth_save_data()
 
-        #start sweep
-        self._scope.stop_acquisition()
-        #self._scope.set_egde_trigger(channel=2, level=-3.0)
-
-        #
-        self._scope.run_single()
-        sleep(0.5)
-        self._ni.start_sweep()
-
-
-        #stop sweep
-        sleep(self._acqusition_time)
-        self._ni.stop_sweep()
-        self._ni.close_sweep()
-
-    def _get_scope_data(self):
-        times, volts = self._scope.aquire_data()
-        volts = volts.reshape(4, int(len(volts) / 4))
-        times = times.reshape(4, int(len(times) / 4))
-        time = times[0]
-
-        self.volts = volts[:,2000:]
-        self.time = time[2000:]
+        return 0
 
     def _linewidth_get_data(self):
+        '''
+        Start a single aquisition 
+        
+        :return: 
+        '''
+
         self._scope.run_single()
 
-        nu_times, self.nu_volts = self._scope.aquire_data()
-        nu_times = nu_times.reshape(4, int(len(nu_times) / 4))
-        #self.nu_volts = nu_volts.reshape(4, int(len(nu_volts) / 4))
-        self.nu_time = nu_times[0]
+        linewidth_times, self.linewidth_volts = self._scope.aquire_data()
+        linewidth_times = linewidth_times.reshape(4, int(len(linewidth_times) / 4))
+        #self.linewidth_volts = linewidth_volts.reshape(4, int(len(linewidth_volts) / 4))
+        self.linewidth_time = linewidth_times[0]
 
-    def _save_raw_data(self):
-        date = datetime.datetime.fromtimestamp(time()).strftime('%Y-%m-%d_%H%M%S')
-        self._current_filename = date + '_full_sweep_data.dat'
 
-        data = np.vstack([self.time, self.volts])
 
-        fmt = '%.15e'
-        header = ''
-        delimiter = '\t'
-        comments = '#'
-
-        with open(os.path.join(self._current_filepath, self._current_filename), 'wb') as file:
-            np.savetxt(file, data, fmt=fmt, delimiter=delimiter, header=header, comments=comments)
-
-    def _linewidth_save_data(self):
-        date = datetime.datetime.fromtimestamp(time()).strftime('%Y-%m-%d_%H%M%S')
-        self._current_filename = date + 'linewidth_data.dat'
-
-        data = np.hstack([self.nu_time_list, self.nu_volts_list])
-        #data = data.reshape(5, int(len(data) / 5))
-        fmt = '%.15e'
-        header = ''
-        delimiter = '\t'
-        comments = '#'
-
-        with open(os.path.join(self._current_filepath, self._current_filename), 'wb') as file:
-            np.savetxt(file, data, fmt=fmt, delimiter=delimiter, header=header, comments=comments)
+################################ PEAK DETECTION START #################################################
 
     def _detect_peaks(self, x, y=None, mph=None, mpd=1, threshold=0, edge='rising',
                      kpsh=False, valley=False, show=False, ax=None):
@@ -467,3 +622,58 @@ class CavityLogic(GenericLogic):
 
         return corrected_resonances
 
+############################################## PEAK DETECTION End ######################################################
+
+#################################### SAVE AND LOAD DATA START ##########################################################
+
+    def _load_full_sweep(self, filepath = None, filename = None):
+        '''
+        Loads data from full sweep
+
+        :param filepath:
+        :param filename:
+        :return:
+        '''
+        delimiter = '\t'
+
+        if filepath is None:
+            filepath = self._current_filepath
+
+        if filename is None:
+            filename = self._current_filename
+
+        with open(os.path.join(filepath, filename), 'rb') as file:
+            data = np.loadtxt(file, delimiter=delimiter)
+
+        self.time = data[0]
+        self.volts = data[1:5]
+
+    def _save_raw_data(self, label):
+        date = datetime.datetime.fromtimestamp(time()).strftime('%Y-%m-%d_%H%M%S')
+        self._current_filename = date + label +'.dat'
+
+        data = np.vstack([self.time, self.volts])
+
+        fmt = '%.15e'
+        header = ''
+        delimiter = '\t'
+        comments = '#'
+
+        with open(os.path.join(self._current_filepath, self._current_filename), 'wb') as file:
+            np.savetxt(file, data, fmt=fmt, delimiter=delimiter, header=header, comments=comments)
+
+    def _linewidth_save_data(self):
+        date = datetime.datetime.fromtimestamp(time()).strftime('%Y-%m-%d_%H%M%S')
+        self._current_filename = date + 'linewidth_data.dat'
+
+        data = np.hstack([self.linewidth_time_list, self.linewidth_volts_list])
+        # data = data.reshape(5, int(len(data) / 5))
+        fmt = '%.15e'
+        header = ''
+        delimiter = '\t'
+        comments = '#'
+
+        with open(os.path.join(self._current_filepath, self._current_filename), 'wb') as file:
+            np.savetxt(file, data, fmt=fmt, delimiter=delimiter, header=header, comments=comments)
+
+############################### Save and load data end #############################################################

@@ -67,6 +67,13 @@ class Scope(Base, ScopeInterface):
         self.set_time_scale(division)
 
     def aquire_data(self):
+        '''
+        Aquires data from scope in all four channels
+        Full reslution is chosen
+        
+        :return: times, volts
+        
+        '''
         channels = ['CH1', 'CH2', 'CH3', 'CH4']
         volts = np.array([])
         times = np.array([])
@@ -105,6 +112,11 @@ class Scope(Base, ScopeInterface):
     # General functionn
 
     def run_continuous(self):
+        '''
+        Starts continous run on scope
+        
+        :return: 
+        '''
         self.scope.write('ACQuire:STOPAfter Runstop')
         self.scope.write(':ACQuire:STATE on')
 
@@ -132,3 +144,4 @@ class Scope(Base, ScopeInterface):
 
     def set_vertical_position(self, channel, position):
         self.scope.write('CH{}:Position {}'.format(channel, position))
+
