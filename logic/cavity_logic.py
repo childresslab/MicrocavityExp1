@@ -73,9 +73,9 @@ class CavityLogic(GenericLogic):
 
         self.first_sweep = None
         self.first_corrected_resonances = None
-        self.t_delay_list = []
+        self.mode_shift_list = []
 
-        self._current_filepath = r'C:\BittorrentSyncDrive\Personal - Rasmus\Rasmus notes\Measurements'
+        self._current_filepath = r'C:\BittorrentSyncDrive\Personal - Rasmus\Rasmus notes\Measurements\test'
 
     def on_activate(self):
         """ Initialisation performed during activation of the module.
@@ -117,13 +117,14 @@ class CavityLogic(GenericLogic):
 
         # Set up scope for full sweep
         self._scope.set_acquisition_time(self._acqusition_time)
+        self._scope.set_data_composition_to_env()
         # HARD CODED!!!!! ARGHH!!!
-        self._scope.set_vertical_scale(2, 500e-3)
-        self._scope.set_vertical_position(2, 3500e-3)
-        self._scope.set_vertical_scale(3, 5e-3)
-        self._scope.set_vertical_position(3, 0)
-        self._scope.set_vertical_scale(4, 2)
-        self._scope.set_vertical_position(4, -2.5)
+        self._scope.set_vertical_scale(2, 500E-3)
+        self._scope.set_vertical_position(2, 3500E-3)
+        self._scope.set_vertical_scale(3.0, 5E-3)
+        self._scope.set_vertical_position(3.0, 0)
+        self._scope.set_vertical_scale(4.0, 2)
+        self._scope.set_vertical_position(4.0, -2.5)
 
         # start sweep
         self._scope.run_single()
@@ -192,6 +193,9 @@ class CavityLogic(GenericLogic):
             self.first_sweep = self.RampUp_signalR
             self.first_corrected_resonances = corrected_resonances
             self.first_RampUp_signalSG_polyfit = self.RampUp_signalSG_polyfit
+            plt.plot(self.first_RampUp_signalSG_polyfit, self.first_sweep)
+            plt.plot(self.first_RampUp_signalSG_polyfit[corrected_resonances], self.first_sweep[corrected_resonances],'o', color='r')
+            plt.show()
 
         self.current_sweep_number += 1
         self._save_raw_data(label='_full_sweep_{}_data'.format(sweep_number))
@@ -201,59 +205,59 @@ class CavityLogic(GenericLogic):
 
 ##################################### TARGET MODE START ###################################################
 
-    def find_phase_difference(self, signal_a, signal_b, low=200000, high=300000, show=False):
+    def find_phase_difference(self, signal_a, signal_b, show=False):
         # regularize datasets by subtracting mean and dividing by s.d.
-        signal_a = signal_a - signal_a.mean()
-        signal_a = signal_a / signal_a.std()
-        signal_b = signal_b - signal_b.mean()
-        signal_b = signal_b / signal_b.std()
-
-        signal_a = signal_a[low:high]
-        signal_b = signal_b[low:high]
+        MODsignal_a = signal_a - signal_a.mean()
+        MODsignal_a = -MODsignal_a / MODsignal_a.std()
+        MODsignal_b = signal_b - signal_b.mean()
+        MODsignal_b = -MODsignal_b / MODsignal_b.std()
 
         # Calculate cross correlation function https://en.wikipedia.org/wiki/Cross-correlation
-        xcorr = np.correlate(signal_a, signal_b, 'same')
+        xcorr = np.correlate(MODsignal_a, MODsignal_b, 'same')
 
-        nsamples = signal_a.size
+        nsamples = MODsignal_a.size
         dt = np.arange(-nsamples / 2, nsamples / 2, dtype=int)
-
-        # Phase delay
-        t_delay = dt[xcorr.argmax()]
+        mode_delay = dt[xcorr.argmax()]
 
         if show is True:
             plt.plot(dt, xcorr)
             plt.show()
 
-        return int(t_delay)
+        return int(mode_delay)
 
 
-    def match_n_and_first_sweep(self, resonances):
+    def match_n_and_first_sweep(self, resonances, low_mode=None, high_mode=None):
         '''
         
         :param resonances: 
         :return: 
         '''
-        low = resonances[20]
-        high = resonances[-20]
-        self.t_delay_list.append(self.find_phase_difference(self.first_sweep, self.RampUp_signalR, low,
-                                                           high, show=True))
+        if low_mode is None:
+            low_mode = 0
+        if high_mode is None:
+            high_mode = np.min([len(self.first_corrected_resonances),len(resonances)])
 
-        return self.t_delay_list
+        mode_shift = self.find_phase_difference(self.first_sweep[self.first_corrected_resonances[low_mode:high_mode]],
+                                   self.RampUp_signalR[resonances[low_mode:high_mode]], show=True)
 
-    def get_target_mode(self, resonances, plot=False):
+        self.mode_shift_list.append(mode_shift)
+
+        return self.mode_shift_list
+
+    def get_target_mode(self, resonances, low_mode=None, high_mode=None, plot=False):
 
         # Find phase difference
-        t_delay_list = self.match_n_and_first_sweep(self.first_corrected_resonances)
+        mode_shift_list = self.match_n_and_first_sweep(resonances, low_mode=low_mode, high_mode=high_mode)
 
         # Find closets mode
-        new_index = self.first_corrected_resonances[self.current_mode_number] - t_delay_list[-1]
-        closest_mode = np.argmin(np.abs(resonances - new_index))
 
-        target_mode = closest_mode
+
+        target_mode = self.current_mode_number - mode_shift_list[-1]
+
 
         if plot is True:
             index = self.first_corrected_resonances[self.current_mode_number]
-            new_index = resonances[closest_mode]
+            new_index = resonances[target_mode]
             plt.plot(self.first_RampUp_signalSG_polyfit, self.first_sweep)
             plt.plot(self.first_RampUp_signalSG_polyfit[index], self.first_sweep[index], 'o', markersize=10, color='r')
             plt.plot(self.RampUp_signalSG_polyfit, self.RampUp_signalR)
@@ -344,8 +348,9 @@ class CavityLogic(GenericLogic):
         self._scope.set_egde_trigger(channel=1, level=trigger_level)
 
         # FIXME: Adjust position and velocity
+        #self._scope.set_vertical_scale(channel=4, scale=1.0)
 
-    def line_width_measurement(self, modes, target_mode, repeat, freq=40):
+    def linewidth_measurement(self, modes, target_mode, repeat, freq=40):
         '''
         
         :param Modes: List of NI_card voltages for each resonances
@@ -366,7 +371,6 @@ class CavityLogic(GenericLogic):
         # sets up scope window for linewidth measurement
         #Triggers on resonance
         self.setup_scope_for_linewidth(trigger_level=level, acquisition_time=100e-6, position=offset, scale=amplitude)
-
         # start continues ramp
         self._ni.set_up_ramp_output(amplitude, offset, freq)
         self._ni.start_ramp()
@@ -375,25 +379,27 @@ class CavityLogic(GenericLogic):
         self.linewidth_volts_list = np.array([])
 
         # Get data from scope
-
         for i in range(repeat):
-            k = 1.0
+            self._scope.run_single()
             while True:
+                k -= 0.05
+                level = np.median(self.RampUp_signalR) - k * contrast
+                self._scope.set_egde_trigger(channel=1, level=level)
                 if k < 0.01:
                     print('did not find resonance')
                     break
-                # Operation complete question
-                self._scope.scope.write('*OPC?')
                 # if triggered then get data
                 try:
-                    if self._scope.scope.read() == r'1\n':
+                    self._scope.scope.write('*OPC?')
+                    sleep(0.05)
+                    ret_str = self._scope.scope.read()
+                    print(ret_str)
+                    if ret_str == r'1':
                         self._linewidth_get_data()
+                        k = 1
                         break
                 except:
                     # if not tiggered then raise trigger level and try again
-                    k -= 0.05
-                    level = np.median(self.RampUp_signalR) - k * contrast
-                    self._scope.set_egde_trigger(channel=1, level=level)
                     continue
 
             self.linewidth_time_list = np.concatenate([self.linewidth_time_list, self.linewidth_time])
@@ -402,6 +408,7 @@ class CavityLogic(GenericLogic):
         #close ramp
         self._ni.stop_ramp()
         self._ni.close_ramp()
+        self._ni.cavity_set_position(0.0)
 
         self._linewidth_save_data(label='_{}'.format(self.current_mode_number))
 
@@ -413,9 +420,7 @@ class CavityLogic(GenericLogic):
         
         :return: 
         '''
-
-        self._scope.run_single()
-
+        self._scope.set_data_composition_to_yt()
         linewidth_times, self.linewidth_volts = self._scope.aquire_data()
         linewidth_times = linewidth_times.reshape(4, int(len(linewidth_times) / 4))
         #self.linewidth_volts = linewidth_volts.reshape(4, int(len(linewidth_volts) / 4))

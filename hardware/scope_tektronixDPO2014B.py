@@ -30,12 +30,14 @@ class Scope(Base, ScopeInterface):
         config = self.getConfiguration()
         self.scope = self.rm.open_resource(self.res[0])
         self.scope.timeout = 1000 # ms
-        self.scope.read_termination = None
+        self.scope.read_termination = '\n'
         self.scope.write_termination = '\n'
-        print('Connected to ' + self.scope.query('*IDN?'))
-        self.single = False
+        try:
+            print('Connected to ' + self.scope.query('*IDN?'))
+        except:
+            self.log.error('Did not connect to scope!!!')
 
-        return
+        return 0
 
     def on_deactivate(self):
         """ Deinitialisation performed during deactivation of the module.
@@ -145,3 +147,8 @@ class Scope(Base, ScopeInterface):
     def set_vertical_position(self, channel, position):
         self.scope.write('CH{}:Position {}'.format(channel, position))
 
+    def set_data_composition_to_env(self):
+        self.scope.write('DATA:COMPOSITION COMPOSITE_ENV')
+
+    def set_data_composition_to_yt(self):
+        self.scope.write('DATA:COMPOSITION COMPOSITE_YT')
