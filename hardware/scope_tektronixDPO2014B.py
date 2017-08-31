@@ -3,6 +3,7 @@ from interface.scope_interface import ScopeInterface
 import visa
 import string
 import sys
+import time
 import numpy as np
 from struct import unpack
 
@@ -43,7 +44,7 @@ class Scope(Base, ScopeInterface):
         """ Deinitialisation performed during deactivation of the module.
         """
         self.scope.close()
-        self.rm.close()
+        #self.rm.close()
         return
 
     def set_time_scale(self, division):
@@ -132,14 +133,23 @@ class Scope(Base, ScopeInterface):
         self.scope.write(':ACQuire:STATE on')
 
 
-    def set_egde_trigger(self, channel, level, slope = 'Rise'):
+    def set_egde_trigger(self, channel, level, slope = 'FALL'):
 
-        self.scope.write('Trigger:A:Type Edge')
-        self.scope.write('Trigger:A:Coupling DC')
-        self.scope.write('Trigger:A:Edge:Slope '+ slope)
-        self.scope.write('Trigger:A:Edge:Source CH{}'.format(channel))
-        self.scope.write('Trigger:A:Level:CH{} {}'.format(channel, level))
-        self.scope.write('HORizontal:DELay:TIMe 0.0')
+        while True:
+            try:
+                self.scope.write('Trigger:A:Type Edge')
+                self.scope.write('Trigger:A:Coupling DC')
+                self.scope.write('Trigger:A:Edge:Slope '+ slope)
+                self.scope.write('Trigger:A:Edge:Source CH{}'.format(channel))
+                self.scope.write('Trigger:A:Level:CH{} {}'.format(channel, level))
+                self.scope.write('HORizontal:DELay:TIMe 0.0')
+                break
+            except:
+                time.sleep(1)
+                self.log.warning('Failed to set up scope')
+                self.on_deactivate()
+                self.on_activate()
+                continue
 
     def set_vertical_scale(self, channel, scale):
         self.scope.write('CH{}:Scale {}'.format(channel, scale))

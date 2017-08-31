@@ -7,9 +7,7 @@ import os
 from itertools import product
 from time import sleep, time
 import matplotlib.pyplot as plt
-from io import BytesIO
 
-from scipy import signal
 from scipy.optimize import curve_fit
 from logic.generic_logic import GenericLogic
 from core.util.mutex import Mutex
@@ -176,7 +174,14 @@ class CavityLogic(GenericLogic):
                 # Every 10 to speed up the fit
                 self.RampUp_signalSG_polyfit = self._polyfit_SG(xdata=self.RampUp_time,ydata=self.RampUp_signalSG,
                                                         order=3, plot=False)
-                break
+
+                resonances = self._peak_search(self.RampUp_signalR)
+                corrected_resonances = self._find_missing_resonances(resonances)
+
+                if len(resonances) < 3:
+                    continue
+                else:
+                    break
             except:
                 #Did not get the fulle sweep
                 if try_num < 3:
@@ -186,8 +191,7 @@ class CavityLogic(GenericLogic):
                     break
                     self.log.error('Cant get full sweep data!')
 
-        resonances = self._peak_search(self.RampUp_signalR)
-        corrected_resonances = self._find_missing_resonances(resonances)
+
 
         if sweep_number == 1:
             self.first_sweep = self.RampUp_signalR
@@ -198,7 +202,7 @@ class CavityLogic(GenericLogic):
             plt.show()
 
         self.current_sweep_number += 1
-        self._save_raw_data(label='_full_sweep_{}_data'.format(sweep_number))
+        self._save_raw_data(label='_{}'.format(sweep_number))
         return corrected_resonances
 
 ##################################### FULL SWEEPS STOP ##################################################
@@ -342,8 +346,8 @@ class CavityLogic(GenericLogic):
         :return: 
         '''
         # Adjust ramp channel:
-        self._scope.set_vertical_scale(channel=2, scale=scale)
-        self._scope.set_vertical_position(channel=2, position=position)
+        #self._scope.set_vertical_scale(channel=2, scale=scale)
+        #self._scope.set_vertical_position(channel=2, position=position)
         self._scope.set_acquisition_time(acquisition_time)
         self._scope.set_egde_trigger(channel=1, level=trigger_level)
 
@@ -360,6 +364,7 @@ class CavityLogic(GenericLogic):
         :return: 
         '''
         # Ramp parameters sweep to half the distance to next modes
+        # FIXME: End modes are not included
         amplitude = abs(modes[target_mode - 1] - modes[target_mode + 1]) / 2.0
         offset = modes[target_mode]
 
@@ -385,7 +390,7 @@ class CavityLogic(GenericLogic):
                 k -= 0.05
                 level = np.median(self.RampUp_signalR) - k * contrast
                 self._scope.set_egde_trigger(channel=1, level=level)
-                if k < 0.01:
+                if k < 0.25:
                     print('did not find resonance')
                     break
                 # if triggered then get data
@@ -393,7 +398,6 @@ class CavityLogic(GenericLogic):
                     self._scope.scope.write('*OPC?')
                     sleep(0.05)
                     ret_str = self._scope.scope.read()
-                    print(ret_str)
                     if ret_str == r'1':
                         self._linewidth_get_data()
                         k = 1
@@ -405,12 +409,18 @@ class CavityLogic(GenericLogic):
             self.linewidth_time_list = np.concatenate([self.linewidth_time_list, self.linewidth_time])
             self.linewidth_volts_list = np.concatenate([self.linewidth_volts_list, self.linewidth_volts])
 
+        data = self.linewidth_volts_list
+        data = data.reshape(4 * repeat, int(len(data) / (4 * repeat)))
+        print(data.shape)
+        data = np.vstack([self.linewidth_time, data])
+
+
         #close ramp
         self._ni.stop_ramp()
         self._ni.close_ramp()
-        self._ni.cavity_set_position(0.0)
+        self._ni.cavity_set_position(20.0e-6)
 
-        self._linewidth_save_data(label='_{}'.format(self.current_mode_number))
+        self._save_linewidth_data(label='_{}'.format(self.current_mode_number), data=data)
 
         return 0
 
@@ -677,12 +687,12 @@ class CavityLogic(GenericLogic):
         with open(os.path.join(filepath, filename), 'rb') as file:
             data = np.loadtxt(file, delimiter=delimiter)
 
-        self.time = data[0]
-        self.volts = data[1:5]
+        self.time = data[:,0]
+        self.volts = data[:,1:5]
 
-    def _save_raw_data(self, label):
+    def _save_raw_data(self, label=''):
         date = datetime.datetime.fromtimestamp(time()).strftime('%Y-%m-%d_%H%M%S')
-        self._current_filename = date + label +'.dat'
+        self._current_filename = date + label +'_full_sweep_data.dat'
 
         data = np.vstack([self.time, self.volts])
 
@@ -692,20 +702,19 @@ class CavityLogic(GenericLogic):
         comments = '#'
 
         with open(os.path.join(self._current_filepath, self._current_filename), 'wb') as file:
-            np.savetxt(file, data, fmt=fmt, delimiter=delimiter, header=header, comments=comments)
+            np.savetxt(file, data.transpose(), fmt=fmt, delimiter=delimiter, header=header, comments=comments)
 
-    def _linewidth_save_data(self, label):
+    def _save_linewidth_data(self, label, data):
         date = datetime.datetime.fromtimestamp(time()).strftime('%Y-%m-%d_%H%M%S')
         self._current_filename = date + label  +'_linewidth_data.dat'
 
-        data = np.hstack([self.linewidth_time_list, self.linewidth_volts_list])
-        # data = data.reshape(5, int(len(data) / 5))
+
         fmt = '%.8e'
         header = ''
         delimiter = '\t'
         comments = '#'
 
         with open(os.path.join(self._current_filepath, self._current_filename), 'wb') as file:
-            np.savetxt(file, data, fmt=fmt, delimiter=delimiter, header=header, comments=comments)
+            np.savetxt(file, data.transpose(), fmt=fmt, delimiter=delimiter, header=header, comments=comments)
 
 ############################### Save and load data end #############################################################
