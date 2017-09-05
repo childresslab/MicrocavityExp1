@@ -14,8 +14,6 @@ from core.util.mutex import Mutex
 from core.module import Connector, ConfigOption, StatusVar
 
 
-
-
 class CavityLogic(GenericLogic):
     """
     This is the Logic class for cavity scanning.
@@ -27,7 +25,6 @@ class CavityLogic(GenericLogic):
     nicard = Connector(interface='ConfocalScannerInterface')
     scope = Connector(interface='scopeinterface')
     savelogic = Connector(interface='SaveLogic')
-
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -71,7 +68,7 @@ class CavityLogic(GenericLogic):
         @return int: error code (0:OK, -1:error)
         """
 
-############################################# DATA AQUISITION START #########################################
+# ############################################ DATA AQUISITION START #########################################
 
     def _trim_data(self, times, volts):
         '''
@@ -105,10 +102,10 @@ class CavityLogic(GenericLogic):
         self.time_trim, self.volts_trim = self._trim_data(self.time, self.volts)
         self._data_split_up()
         return 0
-############################################# DATA AQUSITION END ##########################################
+# ############################################ DATA AQUSITION END ##########################################
 
 
-############################################# FITTING START ###############################################
+# ############################################ FITTING START ###############################################
     def _polyfit_SG(self, xdata, ydata, order=3, plot=False):
         xdata_trim = xdata[::9]
         ydata_trim = ydata[::9]
@@ -131,19 +128,19 @@ class CavityLogic(GenericLogic):
         popt, pcov = curve_fit(func, xdata, ydata, parameter_guess)
         return popt
 
-#############################################  FITTING END  ##############################################
+# ############################################  FITTING END  ##############################################
 
 
-#################################### SAVE AND LOAD DATA START ##########################################################
+# ################################## SAVE AND LOAD DATA START ##########################################################
 
     def _load_full_sweep(self, filepath=None, filename=None):
-        '''
+        """
         Loads data from full sweep
 
         :param filepath:
         :param filename:
         :return:
-        '''
+        """
         delimiter = '\t'
 
         if filepath is None:
@@ -184,18 +181,18 @@ class CavityLogic(GenericLogic):
         with open(os.path.join(self._current_filepath, self._current_filename), 'wb') as file:
             np.savetxt(file, data.transpose(), fmt=fmt, delimiter=delimiter, header=header, comments=comments)
 
-############################### Save and load data end #############################################################
+# ############################# Save and load data end #############################################################
 
-##################################### FULL SWEEPS START ##################################################
+# ################################### FULL SWEEPS START ##################################################
 
     def _get_scope_data(self):
-        '''
+        """
         Get scope data for all four channels
 
         This is loaded into self.volts and self.time
 
         :return: 
-        '''
+        """
         times, volts = self._scope.aquire_data()
         volts = volts.reshape(4, int(len(volts) / 4))
         times = times.reshape(4, int(len(times) / 4))
@@ -208,7 +205,7 @@ class CavityLogic(GenericLogic):
     def setup_scope_for_full_sweep(self):
         self._scope.set_acquisition_time(self._acqusition_time)
         self._scope.set_data_composition_to_env()
-        # HARD CODED!!!!! ARGHH!!!
+        # HARD CODED!!!!!
         self._scope.set_vertical_scale(2, 500E-3)
         self._scope.set_vertical_position(2, 3500E-3)
         self._scope.set_vertical_scale(3.0, 5E-3)
@@ -217,7 +214,7 @@ class CavityLogic(GenericLogic):
         self._scope.set_vertical_position(4.0, -2.5)
 
     def start_full_sweep(self):
-        '''
+        """
         Starts a single full sweep
 
         1. set up the scope for a full sweep
@@ -228,7 +225,7 @@ class CavityLogic(GenericLogic):
 
 
         :return: 
-        '''
+        """
 
         # Set up scope for full sweep
         self.setup_scope_for_full_sweep()
@@ -240,12 +237,12 @@ class CavityLogic(GenericLogic):
 
         # start sweep
         self._scope.run_single()
-        # HARD CODED!!!!! ARGHH!!!
+        # HARD CODED!!!!!
         sleep(0.5)
         self._ni.start_sweep()
 
         # stop sweep
-        # HARD CODED!!!!! ARGHH!!!
+        # HARD CODED!!!!!
         sleep(self._acqusition_time)
         self._ni.close_sweep()
 
@@ -254,13 +251,11 @@ class CavityLogic(GenericLogic):
         return 0
 
     def get_nth_full_sweep(self, sweep_number=None):
-        '''
-
+        """
 
         :param sweep_number: 
         :return: 
-        '''
-
+        """
         if sweep_number is None:
             sweep_number = self.current_sweep_number
 
@@ -282,14 +277,13 @@ class CavityLogic(GenericLogic):
                 else:
                     break
             except:
-                #Did not get the fulle sweep
+                # Did not get the fulle sweep
                 if try_num < 3:
                     try_num += 1
                     continue
                 else:
                     break
                     self.log.error('Cant get full sweep data!')
-
 
         if sweep_number == 1:
             self.first_sweep = self.RampUp_signalR
@@ -303,21 +297,21 @@ class CavityLogic(GenericLogic):
         self._save_raw_data(label='_{}'.format(sweep_number))
         return corrected_resonances
 
-##################################### FULL SWEEPS STOP ##################################################
+# #################################### FULL SWEEPS STOP ##################################################
 
-##################################### TARGET MODE START ###################################################
+# #################################### TARGET MODE START ###################################################
 
     def find_phase_difference(self, signal_a, signal_b, show=False):
         # regularize datasets by subtracting mean and dividing by s.d.
-        MODsignal_a = signal_a - signal_a.mean()
-        MODsignal_a = -MODsignal_a / MODsignal_a.std()
-        MODsignal_b = signal_b - signal_b.mean()
-        MODsignal_b = -MODsignal_b / MODsignal_b.std()
+        mod_signal_a = signal_a - signal_a.mean()
+        mod_signal_a = -mod_signal_a / mod_signal_a.std()
+        mod_signal_b = signal_b - signal_b.mean()
+        mod_signal_b = -mod_signal_b / mod_signal_b.std()
 
         # Calculate cross correlation function https://en.wikipedia.org/wiki/Cross-correlation
-        xcorr = np.correlate(MODsignal_a, MODsignal_b, 'same')
+        xcorr = np.correlate(mod_signal_a, mod_signal_b, 'same')
 
-        nsamples = MODsignal_a.size
+        nsamples = mod_signal_a.size
         dt = np.arange(-nsamples / 2, nsamples / 2, dtype=int)
         mode_delay = dt[xcorr.argmax()]
 
@@ -326,7 +320,6 @@ class CavityLogic(GenericLogic):
             plt.show()
 
         return int(mode_delay)
-
 
     def get_target_mode(self, resonances, low_mode=None, high_mode=None, plot=False):
 
@@ -357,56 +350,109 @@ class CavityLogic(GenericLogic):
             plt.show()
 
         return target_mode
-##################################### TARGET MODE END ###################################################
+# #################################### TARGET MODE END ###################################################
 
 
-############################## LINEWIDTH MEASUREMENT ####################################################
+# ############################# LINEWIDTH MEASUREMENT ####################################################
+    def read_position_from_strain_gauge(self):
+        """
+        This read the strain gauge voltage from the ni card
+        :return:
+        """
+        rawdata = self._ni.read_position()
+
+        position = np.average(rawdata)
+        return position
+
+    def _move_closer_to_resonance(self, current_offset, position_error):
+        """
+
+        :param current_offset:
+        :param position_error:
+        :return:
+        """
+
+        if position_error <= 0:
+            # move back
+            correction = 0
+            new_offset = current_offset + correction
+
+        else:
+            # move forward
+            correction = 0
+            new_offset = current_offset + correction
+
+        self._ni.cavity_set_position(new_offset)
+
+        return new_offset
+
+
+    def _find_resoance_position_from_strain_gauge(self, current_offset, target_position, threshold_pos):
+        """
+
+        :return: offset for mode
+        """
+        while True:
+            try:
+                position_in_volt = self.read_position_from_strain_gauge()
+                position_error = position_in_volt - target_position
+                if np.abs(position_error) < threshold_pos:
+                    break
+                else:
+                    current_offset = self._move_closer_to_resonance(current_offset, position_error)
+                    continue
+            except:
+                self.log.error('could not find resonance position')
+
+        return current_offset
+
     def setup_scope_for_linewidth(self, trigger_level, acquisition_time):
-        '''
+        """
         
         :param trigger_level: 
         :param acquisition_time: 
         :param position: 
         :param scale: 
         :return: 
-        '''
+        """
         # Adjust ramp channel:
         self._scope.set_data_composition_to_yt()
         self._scope.set_acquisition_time(acquisition_time)
         self._scope.set_egde_trigger(channel=1, level=trigger_level)
 
         # FIXME: Adjust position and velocity
-        #self._scope.set_vertical_scale(channel=4, scale=1.0)
+        # self._scope.set_vertical_scale(channel=4, scale=1.0)
 
     def _linewidth_get_data(self):
-        '''
+        """
         Get data from scope
 
         :return: 
-        '''
+        """
         linewidth_times, self.linewidth_volts = self._scope.aquire_data()
         linewidth_times = linewidth_times.reshape(4, int(len(linewidth_times) / 4))
         self.linewidth_time = linewidth_times[0]
 
     def linewidth_measurement(self, modes, target_mode, repeat, freq=40):
-        '''
+        """
         1. sets up scope for linewidth measurement
         2. start a ramp around the target mode
         3. gets data if triggered
         4. closes ramp and saves data
         
-        :param Modes: List of NI_card voltages for each resonances
-        :param target_mode: 
+        :param modes: List of NI_card voltages for each resonances
+        :param target_mode:
         :param repeat: number of linewidth measurements
         :param freq: 
         :return: 
-        '''
+        """
 
         # Setup scope for linewidth measurements with trigger on ramp signal
-        contrast = abs(self.RampUp_signalR.min() - np.median(self.RampUp_signalR))
+        contrast = np.abs(self.RampUp_signalR.min() - np.median(self.RampUp_signalR))
         trigger_level = np.median(self.RampUp_signalR) - contrast
         self.setup_scope_for_linewidth(trigger_level=trigger_level, acquisition_time=100e-6)
 
+        self._find_resoance_position_from_strain_gauge()
         # start continues ramp
         # FIXME: End modes are not included
         amplitude = abs(modes[target_mode - 1] - modes[target_mode + 1]) / 2.0
@@ -414,7 +460,6 @@ class CavityLogic(GenericLogic):
         self._ni.set_up_ramp_output(amplitude, offset, freq)
 
         self._ni.start_ramp()
-
 
         self.linewidth_time_list = np.array([])
         self.linewidth_volts_list = np.array([])
@@ -448,11 +493,9 @@ class CavityLogic(GenericLogic):
 
         data = self.linewidth_volts_list
         data = data.reshape(4 * repeat, int(len(data) / (4 * repeat)))
-        print(data.shape)
         data = np.vstack([self.linewidth_time, data])
 
-
-        #close ramp
+        # close ramp
         self._ni.stop_ramp()
         self._ni.close_ramp()
         self._ni.cavity_set_position(20.0e-6)
@@ -461,13 +504,13 @@ class CavityLogic(GenericLogic):
 
         return 0
 
-
-################################ PEAK DETECTION START #################################################
+# ############################### PEAK DETECTION START #################################################
 
     def _detect_peaks(self, x, y=None, mph=None, mpd=1, threshold=0, edge='rising',
-                     kpsh=False, valley=False, show=False, ax=None):
+                      kpsh=False, valley=False, show=False, ax=None):
 
-        """Detect peaks in data based on their amplitude and other features.
+        """
+        Detect peaks in data based on their amplitude and other features.
 
         Parameters
         ----------
@@ -606,14 +649,14 @@ class CavityLogic(GenericLogic):
             plt.show()
 
     def _check_for_outliers(self, peaks, outlier_cutoff=1.5):
-        '''
+        """
         Finds the distances between between resonaces and locates where the is a missing resoances.
         The is when the distances is larger than 1.5 fsr.
         
         :param peaks: list with resonances 
         :param outlier_cutoff: the distance in the units of fsr  
         :return: 
-        '''
+        """
 
         # Expected fsr in voltage
         one_fsr = self.SG_scale / self.cavity_range * (self.lamb / 2.0)  # in Volt
@@ -630,13 +673,13 @@ class CavityLogic(GenericLogic):
             return np.array([])
 
     def _find_missing_resonances(self, resonances, outlier_cutoff=1.5):
-        '''
+        """
         Inserts a index for a missing resonance if there is more that 1.5 fsr between two resonances
         
         :param resonances: 
         :param outlier_cutoff: 
         :return: 
-        '''
+        """
         corrected_resonances = resonances
         i = 0
         while i < int(1 / 4 * len(resonances)):
@@ -659,7 +702,7 @@ class CavityLogic(GenericLogic):
         return corrected_resonances
 
     def _peak_search(self, signal, outlier_cutoff=1.5, show=False):
-        '''
+        """
         This uses the function peak detect with a few different parameters to find the parameter with
         gives the least amount of outliers (in terms of distance between resonances)
         
@@ -667,7 +710,7 @@ class CavityLogic(GenericLogic):
         :param outlier_cutoff: 
         :param show: 
         :return: 
-        '''
+        """
         # minimum peak height
         mph = -(signal.mean() - np.abs(
             signal.max() - signal.mean()))
@@ -711,4 +754,4 @@ class CavityLogic(GenericLogic):
 
         return resonances
 
-############################################## PEAK DETECTION End ######################################################
+# ############################################# PEAK DETECTION End ######################################################
