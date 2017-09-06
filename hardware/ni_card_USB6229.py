@@ -1497,6 +1497,7 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
         :param t0:
         :return:
         '''
+
         f = np.zeros(len(t))
         period = 1 / freq
         for i in range(len(t)):
@@ -1735,7 +1736,7 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
             + self._cavity_voltage_range[0]
             ))
         volts = np.asanyarray(vlist, dtype=float)
-        print('volts' + '{}'.format(volts))
+
         if volts.min() < self._cavity_voltage_range[0] or volts.max() > self._cavity_voltage_range[1]:
             self.log.error(
                 'Voltages ({0}, {1}) exceed the limit, the positions have to '
@@ -1804,6 +1805,32 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
         try:
             self._write_cavity_ao(
                 voltages=self._cavity_position_to_volt(my_position),
+                start=True)
+        except:
+            return -1
+        return 0
+
+    def cavity_set_voltage(self, voltage=None):
+        """Move stage to pos.
+
+        #FIXME: No volts
+        @param float voltage: voltage in x-direction (volts)
+
+        @return int: error code (0:OK, -1:error)
+        """
+
+        # if self.getState() == 'locked':
+        #    self.log.error('Another scan_line is already running, close this one first.')
+        #    return -1
+
+        if voltage is not None:
+            if not (self._cavity_voltage_range[0] <= voltage <= self._cavity_voltage_range[1]):
+                self.log.error('You want to set x out of range: {0:f}.'.format(voltage))
+                return -1
+
+        try:
+            self._write_cavity_ao(
+                voltages=np.array(voltage),
                 start=True)
         except:
             return -1

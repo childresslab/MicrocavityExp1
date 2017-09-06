@@ -161,7 +161,7 @@ class CavityLogic(GenericLogic):
 
         data = np.vstack([self.time, self.volts])
 
-        fmt = '%.8e'
+        fmt = ['%.8e', '%.3e', '%.3e', '%.3e', '%.3e']
         header = ''
         delimiter = '\t'
         comments = '#'
@@ -173,7 +173,9 @@ class CavityLogic(GenericLogic):
         date = datetime.datetime.fromtimestamp(time()).strftime('%Y-%m-%d_%H%M%S')
         self._current_filename = date + label + '_linewidth_data.dat'
 
-        fmt = '%.8e'
+        fmt = ['%.8e']
+        for i in range(np.shape(data)[0]-1):
+            fmt.append('%.3e')
         header = ''
         delimiter = '\t'
         comments = '#'
@@ -226,6 +228,8 @@ class CavityLogic(GenericLogic):
 
         :return: 
         """
+        self._ni.cavity_set_voltage(0.0)
+        sleep(1.0)
 
         # Set up scope for full sweep
         self.setup_scope_for_full_sweep()
@@ -295,6 +299,8 @@ class CavityLogic(GenericLogic):
 
         self.current_sweep_number += 1
         self._save_raw_data(label='_{}'.format(sweep_number))
+        self.current_resonances = corrected_resonances
+
         return corrected_resonances
 
 # #################################### FULL SWEEPS STOP ##################################################
@@ -371,28 +377,25 @@ class CavityLogic(GenericLogic):
         :param position_error:
         :return:
         """
+        # Approximate correction
+        response = (-3.75 / 20) * 2  # (expansion of pzt) V/um / (position in volt) 20 um/ 10 V  = 2.0
 
-        if position_error <= 0:
-            # move back
-            correction = 0
-            new_offset = current_offset + correction
-
-        else:
-            # move forward
-            correction = 0
-            new_offset = current_offset + correction
-
-        self._ni.cavity_set_position(new_offset)
+        correction = - response * position_error
+        new_offset = current_offset + correction
+        self._ni.cavity_set_voltage(new_offset)
 
         return new_offset
 
 
-    def _find_resoance_position_from_strain_gauge(self, current_offset, target_position, threshold_pos):
+    def _find_resonance_position_from_strain_gauge(self, current_offset, target_position, threshold_pos):
         """
 
         :return: offset for mode
         """
-        while True:
+        i=0
+        while i < 10:
+            self._ni.cavity_set_voltage(current_offset)
+            sleep(3.0)
             try:
                 position_in_volt = self.read_position_from_strain_gauge()
                 position_error = position_in_volt - target_position
@@ -400,6 +403,7 @@ class CavityLogic(GenericLogic):
                     break
                 else:
                     current_offset = self._move_closer_to_resonance(current_offset, position_error)
+                    i += 1
                     continue
             except:
                 self.log.error('could not find resonance position')
@@ -452,11 +456,23 @@ class CavityLogic(GenericLogic):
         trigger_level = np.median(self.RampUp_signalR) - contrast
         self.setup_scope_for_linewidth(trigger_level=trigger_level, acquisition_time=100e-6)
 
-        self._find_resoance_position_from_strain_gauge()
+
+
+
+        offset = self._find_resonance_position_from_strain_gauge(current_offset=modes[target_mode],
+                                                                 target_position=self.RampUp_signalSG_polyfit[
+                                                                     self.current_resonances[target_mode]],
+                                                                 threshold_pos=0.05)# 50 nm
         # start continues ramp
-        # FIXME: End modes are not included
-        amplitude = abs(modes[target_mode - 1] - modes[target_mode + 1]) / 2.0
-        offset = modes[target_mode]
+        #Two first cases are for end modes
+        # FIXME: End modes still does not work because of bound of 0, -3.75
+        if target_mode >= np.size(modes):
+            amplitude = 2 * abs(modes[target_mode - 1] - modes[target_mode]) / 2.0
+        elif target_mode == 0:
+            amplitude = 2 * abs(modes[target_mode] - modes[target_mode + 1]) / 2.0
+        else:
+            amplitude = abs(modes[target_mode - 1] - modes[target_mode + 1]) / 2.0
+
         self._ni.set_up_ramp_output(amplitude, offset, freq)
 
         self._ni.start_ramp()
@@ -467,6 +483,7 @@ class CavityLogic(GenericLogic):
         # Get data from scope
         k = 1.0
         for i in range(repeat):
+
             self._scope.run_single()
             while True:
                 k -= 0.05
@@ -483,6 +500,22 @@ class CavityLogic(GenericLogic):
                     if ret_str == r'1':
                         self._linewidth_get_data()
                         k = 1
+
+                        # Make sure we are stil at the right position
+                        self._ni.stop_ramp()
+                        self._ni.close_ramp()
+
+                        offset = self._find_resonance_position_from_strain_gauge(current_offset=modes[target_mode],
+                                                                                 target_position=
+                                                                                 self.RampUp_signalSG_polyfit[
+                                                                                     self.current_resonances[
+                                                                                         target_mode]],
+                                                                                 threshold_pos=0.05)  # 50 nm
+
+                        self._ni.set_up_ramp_output(amplitude, offset, freq)
+
+                        self._ni.start_ramp()
+
                         break
                 except:
                     # if not tiggered then raise trigger level and try again
