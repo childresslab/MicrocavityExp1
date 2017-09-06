@@ -1092,6 +1092,22 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
             retval = -1
         return retval
 
+    def read_position(self):
+        """
+        Read 100 data points from analog input
+        :return:
+        """
+
+        self._start_analog_input()
+        daq.DAQmxCfgSampClkTiming(self._scanner_ai_task, "", 100, daq.DAQmx_Val_Rising, daq.DAQmx_Val_FiniteSamps,100)
+        rawdata = np.zeros(100, dtype=np.float64)
+        read = daq.int32()
+        daq.DAQmxStartTask(self._scanner_ai_task)
+        daq.DAQmxReadAnalogF64(self._scanner_ai_task, 10000, 1.0, daq.DAQmx_Val_GroupByChannel, rawdata, 10000,
+                               daq.byref(read), None)
+
+        return rawdata
+
 
     def set_up_scanner_clock(self, clock_frequency = None, clock_channel = None):
         """ Configures the hardware clock of the NiDAQ card to give the timing.
