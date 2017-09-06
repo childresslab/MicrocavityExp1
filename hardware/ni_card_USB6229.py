@@ -1059,7 +1059,7 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
                     #
                     daq.DAQmx_Val_Cfg_Default,
                     # minimum possible voltage
-                    0,
+                    -10,
                     # maximum possible voltage
                     10,
                     # units is Volt
