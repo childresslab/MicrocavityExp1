@@ -399,6 +399,8 @@ class CavityLogic(GenericLogic):
             try:
                 position_in_volt = self.read_position_from_strain_gauge()
                 position_error = position_in_volt - target_position
+                self.log.info('Current position = {:0.4f}'.format(2*position_in_volt))
+                self.log.info('Target position = {:0.4f}'.format(2*target_position))
                 if np.abs(position_error) < threshold_pos:
                     break
                 else:
