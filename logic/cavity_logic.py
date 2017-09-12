@@ -380,7 +380,7 @@ class CavityLogic(GenericLogic):
         # Approximate correction
         response = (-3.75 / 20) * 2  # (expansion of pzt) V/um / (position in volt) 20 um/ 10 V  = 2.0
 
-        correction = - response * position_error
+        correction = - 1.05 * response * position_error
         new_offset = current_offset + correction
         self._ni.cavity_set_voltage(new_offset)
 
@@ -392,7 +392,7 @@ class CavityLogic(GenericLogic):
 
         :return: offset for mode
         """
-        i=0
+        i = 0
         while i < 10:
             self._ni.cavity_set_voltage(current_offset)
             sleep(3.0)
@@ -454,10 +454,7 @@ class CavityLogic(GenericLogic):
         # Setup scope for linewidth measurements with trigger on ramp signal
         contrast = np.abs(self.RampUp_signalR.min() - np.median(self.RampUp_signalR))
         trigger_level = np.median(self.RampUp_signalR) - contrast
-        self.setup_scope_for_linewidth(trigger_level=trigger_level, acquisition_time=100e-6)
-
-
-
+        self.setup_scope_for_linewidth(trigger_level=trigger_level, acquisition_time=40e-6)
 
         offset = self._find_resonance_position_from_strain_gauge(current_offset=modes[target_mode],
                                                                  target_position=self.RampUp_signalSG_polyfit[
@@ -518,6 +515,7 @@ class CavityLogic(GenericLogic):
 
                         break
                 except:
+                    k = 1
                     # if not tiggered then raise trigger level and try again
                     continue
 
