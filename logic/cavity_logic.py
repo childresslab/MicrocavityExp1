@@ -486,9 +486,9 @@ class CavityLogic(GenericLogic):
         self.linewidth_volts_list = np.array([])
 
         # Get data from scope
-        k = 1.0
-        for i in range(repeat):
 
+        for i in range(repeat):
+            k = 1.0
             self._scope.run_single()
             while True:
                 k -= 0.05
@@ -504,7 +504,6 @@ class CavityLogic(GenericLogic):
                     ret_str = self._scope.scope.read()
                     if ret_str == r'1':
                         self._linewidth_get_data()
-                        k = 1
 
                         # Make sure we are still at the right position
                         self._ni.stop_ramp()
@@ -523,7 +522,6 @@ class CavityLogic(GenericLogic):
 
                         break
                 except:
-                    k = 1
                     # if not tiggered then raise trigger level and try again
                     continue
 
