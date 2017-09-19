@@ -1099,8 +1099,8 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
         """
 
         self._start_analog_input()
-        daq.DAQmxCfgSampClkTiming(self._scanner_ai_task, "", 100, daq.DAQmx_Val_Rising, daq.DAQmx_Val_FiniteSamps,100)
-        rawdata = np.zeros(100, dtype=np.float64)
+        daq.DAQmxCfgSampClkTiming(self._scanner_ai_task, "", 200, daq.DAQmx_Val_Rising, daq.DAQmx_Val_FiniteSamps,200)
+        rawdata = np.zeros(200, dtype=np.float64)
         read = daq.int32()
         daq.DAQmxStartTask(self._scanner_ai_task)
         daq.DAQmxReadAnalogF64(self._scanner_ai_task, 10000, 1.0, daq.DAQmx_Val_GroupByChannel, rawdata, 10000,

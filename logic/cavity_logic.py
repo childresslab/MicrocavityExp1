@@ -205,6 +205,7 @@ class CavityLogic(GenericLogic):
         self.time = time[2000:]
 
     def setup_scope_for_full_sweep(self):
+        self._scope.set_record_lenght(linewidth=False)
         self._scope.set_acquisition_time(self._acqusition_time)
         self._scope.set_data_composition_to_env()
         # HARD CODED!!!!!
@@ -380,7 +381,7 @@ class CavityLogic(GenericLogic):
         # Approximate correction
         response = (-3.75 / 20) * 2  # (expansion of pzt) V/um / (position in volt) 20 um/ 10 V  = 2.0
 
-        correction = - 1.05 * response * position_error
+        correction = - response * position_error
         new_offset = current_offset + correction
         self._ni.cavity_set_voltage(new_offset)
 
@@ -392,6 +393,7 @@ class CavityLogic(GenericLogic):
 
         :return: offset for mode
         """
+        self.log.info('Target position = {:0.3f}'.format(2 * target_position))
         i = 0
         while i < 10:
             self._ni.cavity_set_voltage(current_offset)
@@ -399,9 +401,9 @@ class CavityLogic(GenericLogic):
             try:
                 position_in_volt = self.read_position_from_strain_gauge()
                 position_error = position_in_volt - target_position
-                self.log.info('Current position = {:0.4f}'.format(2*position_in_volt))
-                self.log.info('Target position = {:0.4f}'.format(2*target_position))
-                if np.abs(position_error) < threshold_pos:
+                self.log.info('Current position = {:0.3f}, Distance from target {:0.3f}'.format(2 * position_in_volt,
+                                                                                                position_error * 2))
+                if np.abs(position_error) < threshold_pos / 2.0: # Convert from volt to nm
                     break
                 else:
                     current_offset = self._move_closer_to_resonance(current_offset, position_error)
@@ -409,6 +411,9 @@ class CavityLogic(GenericLogic):
                     continue
             except:
                 self.log.error('could not find resonance position')
+
+        if i > 10:
+            self.log.warning('Did not find a position')
 
         return current_offset
 
@@ -424,6 +429,7 @@ class CavityLogic(GenericLogic):
         # Adjust ramp channel:
         self._scope.set_data_composition_to_yt()
         self._scope.set_acquisition_time(acquisition_time)
+        self._scope.set_record_lenght(linewidth=True)
         self._scope.set_egde_trigger(channel=1, level=trigger_level)
 
         # FIXME: Adjust position and velocity
@@ -500,7 +506,7 @@ class CavityLogic(GenericLogic):
                         self._linewidth_get_data()
                         k = 1
 
-                        # Make sure we are stil at the right position
+                        # Make sure we are still at the right position
                         self._ni.stop_ramp()
                         self._ni.close_ramp()
 

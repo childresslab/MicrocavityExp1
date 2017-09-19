@@ -69,7 +69,7 @@ class Scope(Base, ScopeInterface):
         division = acquisition_time / 10
         self.set_time_scale(division)
 
-    def aquire_data(self):
+    def aquire_data(self, linewidth=False):
         '''
         Aquires data from scope in all four channels
         Full reslution is chosen
@@ -84,9 +84,15 @@ class Scope(Base, ScopeInterface):
             self.scope.write('DATA:SOU {}'.format(channel))
             self.scope.write('DATA:WIDTH 1')
             self.scope.write('DATA:ENC RPB')
-            self.scope.write('HORizontal:RECordlength 1250000')
-            self.scope.write('DATA:Start 1')
-            self.scope.write('DATA:Stop 1250000')
+            if linewidth is False:
+                #self.scope.write('HORizontal:RECordlength 1250000')
+                self.scope.write('DATA:Start 1')
+                self.scope.write('DATA:Stop 1250000')
+            else:
+                #self.scope.write('HORizontal:RECordlength 100000')
+                self.scope.write('DATA:Start 1')
+                self.scope.write('DATA:Stop 100000')
+
             self.scope.write('DATA:Resolution FULL')
 
 
@@ -162,3 +168,9 @@ class Scope(Base, ScopeInterface):
 
     def set_data_composition_to_yt(self):
         self.scope.write('DATA:COMPOSITION COMPOSITE_YT')
+
+    def set_record_lenght(self, linewidth=False):
+        if linewidth is False:
+            self.scope.write('HORizontal:RECordlength 1250000')
+        else:
+            self.scope.write('HORizontal:RECordlength 100000')
