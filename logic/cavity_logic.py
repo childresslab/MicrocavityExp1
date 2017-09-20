@@ -26,7 +26,10 @@ class CavityLogic(GenericLogic):
     savelogic = Connector(interface='SaveLogic')
 
     sigFullSweepPlotUpdated = QtCore.Signal(np.ndarray, np.ndarray)
+    sigLinewidthPlotUpdated = QtCore.Signal(np.ndarray, np.ndarray)
     sigResonancesUpdated = QtCore.Signal(np.ndarray)
+    sigSweepNumberUpdated = QtCore.Signal(int)
+    sigTargetModeNumberUpdated = QtCore.Signal(int)
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -288,8 +291,7 @@ class CavityLogic(GenericLogic):
                     try_num += 1
                     continue
                 else:
-                    break
-                    self.log.error('Cant get full sweep data!')
+                    return -1
 
         if sweep_number == 1:
             self.first_sweep = self.RampUp_signalR
@@ -304,6 +306,8 @@ class CavityLogic(GenericLogic):
 
         self.sigFullSweepPlotUpdated.emit(self.RampUp_time, self.RampUp_signalR)
         self.sigResonancesUpdated.emit(self.current_resonances)
+
+        return 0
 
         if save is True:
             self._save_raw_data(label='_{}'.format(sweep_number))
@@ -515,6 +519,10 @@ class CavityLogic(GenericLogic):
                         self._ni.stop_ramp()
                         self._ni.close_ramp()
 
+                        #Update plot in gui
+                        self.sigLinewidthPlotUpdated.emit(self.linewidth_time, self.linewidth_volts[0])
+
+                        # Refind correct position
                         offset = self._find_resonance_position_from_strain_gauge(current_offset=modes[target_mode],
                                                                                  target_position=
                                                                                  self.RampUp_signalSG_polyfit[
@@ -522,8 +530,8 @@ class CavityLogic(GenericLogic):
                                                                                          target_mode]],
                                                                                  threshold_pos=0.05)  # 50 nm
 
+                        #Start new ramp
                         self._ni.set_up_ramp_output(amplitude, offset, freq)
-
                         self._ni.start_ramp()
 
                         break
@@ -542,6 +550,7 @@ class CavityLogic(GenericLogic):
         self._ni.stop_ramp()
         self._ni.close_ramp()
         self._ni.cavity_set_position(20.0e-6)
+
 
         self._save_linewidth_data(label='_{}'.format(self.current_mode_number), data=data)
 
@@ -798,3 +807,40 @@ class CavityLogic(GenericLogic):
         return resonances
 
 # ############################################# PEAK DETECTION End ######################################################
+
+    def get_hw_constraints(self):
+        """ Return the names of all ocnfigured fit functions.
+        @return object: Hardware constraints object
+        """
+        # FIXME: Should be from hardware
+        #constraints = self._ni.get_limits()
+        #return constraints
+
+        pass
+
+    def start_ramp(self, amplitude, offset, freq):
+
+        self._ni.set_up_ramp_output(amplitude, offset, freq)
+        self._ni.start_ramp()
+
+    def stop_ramp(self):
+
+        self._ni.stop_ramp()
+        self._ni.close_ramp()
+
+    def start_finesse_measurement(self):
+
+        ret_val = self.get_nth_full_sweep(sweep_number=1, save=True)
+        if ret_val != 0:
+            self.log.error('Did not get first sweep!')
+
+        # fit
+
+    def continue_finesse_measurements(self):
+        pass
+
+    def stop_finesse_measurement(self):
+        pass
+
+
+

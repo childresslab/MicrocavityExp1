@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1069</width>
-    <height>619</height>
+    <height>723</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -39,9 +39,9 @@
        </widget>
       </item>
       <item row="4" column="0">
-       <widget class="QPushButton" name="pushButton_2">
+       <widget class="QPushButton" name="start_finesse_PushBotton">
         <property name="text">
-         <string>Start Finesee meausrement </string>
+         <string>Start finesse meausrement </string>
         </property>
        </widget>
       </item>
@@ -59,7 +59,34 @@
         </property>
        </widget>
       </item>
+      <item row="5" column="0">
+       <widget class="QPushButton" name="stop_finesse_PushBotton">
+        <property name="text">
+         <string>Stop finesse meausrement </string>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="0">
+       <widget class="QPushButton" name="continue_finesse_PushBotton">
+        <property name="text">
+         <string>Contiune finesse meausrement </string>
+        </property>
+       </widget>
+      </item>
      </layout>
+    </item>
+    <item row="1" column="0">
+     <spacer name="verticalSpacer_2">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+      <property name="sizeHint" stdset="0">
+       <size>
+        <width>20</width>
+        <height>40</height>
+       </size>
+      </property>
+     </spacer>
     </item>
    </layout>
   </widget>
@@ -75,6 +102,12 @@
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <widget class="QDockWidget" name="fullsweep">
+   <property name="sizePolicy">
+    <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+     <horstretch>0</horstretch>
+     <verstretch>0</verstretch>
+    </sizepolicy>
+   </property>
    <property name="windowTitle">
     <string>Full sweep</string>
    </property>
@@ -90,6 +123,12 @@
    </widget>
   </widget>
   <widget class="QDockWidget" name="linewidthsweep">
+   <property name="sizePolicy">
+    <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+     <horstretch>0</horstretch>
+     <verstretch>0</verstretch>
+    </sizepolicy>
+   </property>
    <property name="windowTitle">
     <string>Linewidth mreasurements</string>
    </property>
@@ -99,7 +138,7 @@
    <widget class="QWidget" name="dockWidgetContents_2">
     <layout class="QGridLayout" name="gridLayout">
      <item row="0" column="0">
-      <widget class="PlotWidget" name="linewidthsweepplot"/>
+      <widget class="PlotWidget" name="linewidth_PlotWidget"/>
      </item>
     </layout>
    </widget>
@@ -126,21 +165,7 @@
         </widget>
        </item>
        <item row="0" column="1">
-        <widget class="QDoubleSpinBox" name="doubleSpinBox_3"/>
-       </item>
-       <item row="3" column="0">
-        <widget class="QPushButton" name="pushButton">
-         <property name="text">
-          <string>Start Ramp</string>
-         </property>
-        </widget>
-       </item>
-       <item row="3" column="1">
-        <widget class="QPushButton" name="pushButton_3">
-         <property name="text">
-          <string>Stop ramp</string>
-         </property>
-        </widget>
+        <widget class="QDoubleSpinBox" name="ramp_frequency_DoubleSpinBox"/>
        </item>
        <item row="1" column="0">
         <widget class="QLabel" name="label_3">
@@ -149,6 +174,9 @@
          </property>
         </widget>
        </item>
+       <item row="1" column="1">
+        <widget class="QDoubleSpinBox" name="ramp_offset_DoubleSpinBox"/>
+       </item>
        <item row="2" column="0">
         <widget class="QLabel" name="label_4">
          <property name="text">
@@ -156,13 +184,37 @@
          </property>
         </widget>
        </item>
-       <item row="1" column="1">
-        <widget class="QDoubleSpinBox" name="doubleSpinBox_2"/>
+       <item row="3" column="0">
+        <widget class="QPushButton" name="StartRamp_PushButton">
+         <property name="text">
+          <string>Start ramp</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QPushButton" name="StopRamp_PushButton">
+         <property name="text">
+          <string>Stop ramp</string>
+         </property>
+        </widget>
        </item>
        <item row="2" column="1">
-        <widget class="QDoubleSpinBox" name="doubleSpinBox_4"/>
+        <widget class="QDoubleSpinBox" name="ramp_amplitude_DoubleSpinBox"/>
        </item>
       </layout>
+     </item>
+     <item row="1" column="0">
+      <spacer name="verticalSpacer">
+       <property name="orientation">
+        <enum>Qt::Vertical</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>20</width>
+         <height>40</height>
+        </size>
+       </property>
+      </spacer>
      </item>
     </layout>
    </widget>

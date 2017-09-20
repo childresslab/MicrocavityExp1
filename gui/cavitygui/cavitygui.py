@@ -96,12 +96,50 @@ class CavityGui(GUIBase):
         self._mw.fullsweep_PlotWidget.showGrid(x=True, y=True, alpha=0.8)
 
         self._mw.fullsweep_PlotWidget.addItem(self.fullsweep_image)
+
+        self.linewidth_image = pg.PlotDataItem(self._cavity_logic.RampUp_time,
+                                               self._cavity_logic.RampUp_signalR,
+                                               pen=pg.mkPen(palette.c1, style=QtCore.Qt.DotLine),
+                                               symbol='o',
+                                               symbolPen=palette.c1,
+                                               symbolBrush=palette.c1,
+                                               symbolSize=2)
+
+        self._mw.linewidth_PlotWidget.setLabel(axis='left', text='Signal', units='V')
+        self._mw.linewidth_PlotWidget.setLabel(axis='bottom', text='Time', units='s')
+        self._mw.linewidth_PlotWidget.showGrid(x=True, y=True, alpha=0.8)
+
+        self._mw.linewidth_PlotWidget.addItem(self.linewidth_image)
         # Create a QSettings object for the mainwindow and store the actual GUI layout
         self.mwsettings = QtCore.QSettings("QUDI", "Cavity")
 
+        #Connect bottons
         self._mw.fullsweeptest_PushBotton.clicked.connect(self.fullsweeptest)
+        self._mw.start_finesse_PushBotton.clicked.connect(self.start_finesse_measurement)
+        self._mw.stop_finesse_PushBotton.clicked.connect(self.stop_finesse_measurement)
+        self._mw.continue_finesse_PushBotton.clicked.connect(self.contiune_finesse_measurement)
 
+        # Signals from logic
         self._cavity_logic.sigFullSweepPlotUpdated.connect(self.update_fullsweep_plot, QtCore.Qt.QueuedConnection)
+        self._cavity_logic.sigLinewidthPlotUpdated.connect(self.update_linewidth_plot, QtCore.Qt.QueuedConnection)
+        self._cavity_logic.sigSweepNumberUpdated.connect(self.update_sweep_number)
+        self._cavity_logic.sigTargetModeNumberUpdated.connect(self.update_mode_number)
+
+        # FIXME: Shoud be from Hardware
+        # Adjust range of scientific spinboxes above what is possible in Qt Designer
+        constraints = self._cavity_logic.get_hw_constraints()
+        #self._mw.ramp_frequency_DoubleSpinBox.setMaximum(constraints.max_frequency)
+        self._mw.ramp_frequency_DoubleSpinBox.setMaximum(50)
+        self._mw.ramp_frequency_DoubleSpinBox.setMinimum(0)
+        #self._mw.ramp_frequency_DoubleSpinBox.setOpts(minStep=0.5)  # set the minimal step to 0.5Hz
+        self._mw.ramp_offset_DoubleSpinBox.setMaximum(0)
+        self._mw.ramp_offset_DoubleSpinBox.setMinimum(-3.75)
+        self._mw.ramp_amplitude_DoubleSpinBox.setMaximum(0)
+        self._mw.ramp_amplitude_DoubleSpinBox.setMinimum(-3.75/2)
+
+        self._mw.StartRamp_PushButton.clicked.connect(self.start_ramp)
+        self._mw.StartRamp_PushButton.clicked.connect(self.stop_ramp)
+
 
 
     def on_deactivate(self):
@@ -120,11 +158,58 @@ class CavityGui(GUIBase):
         return
 
     def fullsweeptest(self):
-        print('test')
+        self._cavity_logic.get_nth_full_sweep(sweep_number=1, save=False)
+
 
     def update_fullsweep_plot(self, time, signal):
         self.fullsweep_image.setData(time, signal)
         # Update raw data matrix plot
+
+    def update_linewidth_plot(self, time, signal):
+        self.linewidth_image.setData(time, signal)
+        # Update raw data matrix plot
+
+    def start_ramp(self):
+
+        amplitude = self._mw.ramp_amplitude_DoubleSpinBox.value()
+        offset = self._mw.ramp_offset_DoubleSpinBox.value()
+        freq = self._mw.ramp_frequency_DoubleSpinBox.value()
+
+        self._cavity_logic.start_ramp(amplitude, offset, freq)
+
+        # Disable changes to parameters
+        self._mw.ramp_amplitude_DoubleSpinBox.setEnabled(False)
+        self._mw.ramp_offset_DoubleSpinBox.setEnabled(False)
+        self._mw.ramp_frequency_DoubleSpinBox.setEnabled(False)
+
+
+    def stop_ramp(self):
+        self._cavity_logic.stop_ramp()
+
+        # Enable changes to parameters
+        self._mw.ramp_amplitude_DoubleSpinBox.setEnabled(True)
+        self._mw.ramp_offset_DoubleSpinBox.setEnabled(True)
+        self._mw.ramp_frequency_DoubleSpinBox.setEnabled(True)
+
+    def start_finesse_measurement(self):
+        #self._cavity_logic.start_finesse_measurement()
+        pass
+
+    def stop_finesse_measurement(self):
+        pass
+
+    def contiune_finesse_measurement(self):
+        pass
+
+    def update_mode_number(self, value):
+        self._mw.ModeNumber_DoubleSpinBox.setValue(value=value)
+
+    def update_sweep_number(self, value):
+        self._mw.SweepNumber_DoubleSpinBox.setValue(value=value)
+
+
+
+
 
 
 
