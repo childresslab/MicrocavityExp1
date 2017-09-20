@@ -255,7 +255,7 @@ class CavityLogic(GenericLogic):
 
         return 0
 
-    def get_nth_full_sweep(self, sweep_number=None):
+    def get_nth_full_sweep(self, sweep_number=None, test=False):
         """
 
         :param sweep_number: 
@@ -299,8 +299,10 @@ class CavityLogic(GenericLogic):
             plt.show()
 
         self.current_sweep_number += 1
-        self._save_raw_data(label='_{}'.format(sweep_number))
         self.current_resonances = corrected_resonances
+
+        if test is False:
+            self._save_raw_data(label='_{}'.format(sweep_number))
 
         return corrected_resonances
 
