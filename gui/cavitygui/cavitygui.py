@@ -89,7 +89,7 @@ class CavityGui(GUIBase):
                                           symbol='o',
                                           symbolPen=palette.c1,
                                           symbolBrush=palette.c1,
-                                          symbolSize=7)
+                                          symbolSize=2)
 
         self._mw.fullsweep_PlotWidget.setLabel(axis='left', text='Signal', units='V')
         self._mw.fullsweep_PlotWidget.setLabel(axis='bottom', text='Time', units='s')
@@ -125,17 +125,6 @@ class CavityGui(GUIBase):
     def update_fullsweep_plot(self, time, signal):
         self.fullsweep_image.setData(time, signal)
         # Update raw data matrix plot
-        cb_range = self.get_matrix_cb_range()
-        self.update_colorbar(cb_range)
-        self.odmr_matrix_image.setRect(
-            QtCore.QRectF(
-                odmr_data_x[0],
-                0,
-                np.abs(odmr_data_x[-1] - odmr_data_x[0]),
-                odmr_matrix.shape[0])
-        )
-        self.odmr_matrix_image.setImage(
-            image=odmr_matrix,
-            axisOrder='row-major',
-            levels=(cb_range[0], cb_range[1]))
+
+
 
