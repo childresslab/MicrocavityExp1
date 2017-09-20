@@ -1,4 +1,3 @@
-
 from qtpy import QtCore
 from collections import OrderedDict
 import datetime
@@ -26,14 +25,18 @@ class CavityLogic(GenericLogic):
     scope = Connector(interface='scopeinterface')
     savelogic = Connector(interface='SaveLogic')
 
+    sigFullSweepPlotUpdated = QtCore.Signal(np.ndarray, np.ndarray)
+    sigResonancesUpdated = QtCore.Signal(np.ndarray)
+
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
 
         #locking for thread safety
         self.threadlock = Mutex()
 
-        # counter for scan_image
         self._full_sweep_freq = 2/3
+        self.RampUp_time = np.linspace(0,1 ,100)
+        self.RampUp_signalR = np.linspace(1,1,100)
         self._full_sweep_start = 0.0
         self._full_sweep_stop = -3.75
         self._acqusition_time = 2.0
@@ -58,9 +61,7 @@ class CavityLogic(GenericLogic):
         self._ni = self.get_connector('nicard')
         self._scope = self.get_connector('scope')
         self._save_logic = self.get_connector('savelogic')
-
         self.cavity_range = self._ni._cavity_position_range[1] - self._ni._cavity_position_range[0]
-
 
     def on_deactivate(self):
         """ Reverse steps of activation
@@ -255,7 +256,7 @@ class CavityLogic(GenericLogic):
 
         return 0
 
-    def get_nth_full_sweep(self, sweep_number=None, test=False):
+    def get_nth_full_sweep(self, sweep_number=None, save=True):
         """
 
         :param sweep_number: 
@@ -301,7 +302,10 @@ class CavityLogic(GenericLogic):
         self.current_sweep_number += 1
         self.current_resonances = corrected_resonances
 
-        if test is False:
+        self.sigFullSweepPlotUpdated.emit(self.RampUp_time, self.RampUp_signalR)
+        self.sigResonancesUpdated.emit(self.current_resonances)
+
+        if save is True:
             self._save_raw_data(label='_{}'.format(sweep_number))
 
         return corrected_resonances
