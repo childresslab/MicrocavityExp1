@@ -286,7 +286,7 @@ class CavityLogic(GenericLogic):
                 else:
                     break
             except:
-                # Did not get the fulle sweep
+                # Did not get the full sweep
                 if try_num < 3:
                     try_num += 1
                     continue
@@ -307,12 +307,10 @@ class CavityLogic(GenericLogic):
         self.sigFullSweepPlotUpdated.emit(self.RampUp_time, self.RampUp_signalR)
         self.sigResonancesUpdated.emit(self.current_resonances)
 
-        return 0
-
         if save is True:
             self._save_raw_data(label='_{}'.format(sweep_number))
 
-        return corrected_resonances
+        return 0
 
 # #################################### FULL SWEEPS STOP ##################################################
 
@@ -474,10 +472,6 @@ class CavityLogic(GenericLogic):
         trigger_level = np.median(self.RampUp_signalR) - contrast
         self.setup_scope_for_linewidth(trigger_level=trigger_level, acquisition_time=40e-6)
 
-        offset = self._find_resonance_position_from_strain_gauge(current_offset=modes[target_mode],
-                                                                 target_position=self.RampUp_signalSG_polyfit[
-                                                                     self.current_resonances[target_mode]],
-                                                                 threshold_pos=0.05)# 50 nm
         # start continues ramp
         #Two first cases are for end modes
         # FIXME: End modes still does not work because of bound of 0, -3.75
@@ -488,10 +482,6 @@ class CavityLogic(GenericLogic):
         else:
             amplitude = abs(modes[target_mode - 1] - modes[target_mode + 1]) / 2.0
 
-        self._ni.set_up_ramp_output(amplitude, offset, freq)
-
-        self._ni.start_ramp()
-
         self.linewidth_time_list = np.array([])
         self.linewidth_volts_list = np.array([])
 
@@ -499,45 +489,55 @@ class CavityLogic(GenericLogic):
 
         for i in range(repeat):
             k = 1.0
+
+            # Refind correct position
+            offset = self._find_resonance_position_from_strain_gauge(current_offset=modes[target_mode],
+                                                                     target_position=
+                                                                     self.RampUp_signalSG_polyfit[
+                                                                         self.current_resonances[
+                                                                             target_mode]],
+                                                                     threshold_pos=0.05)  # 50 nm
+
+            # Start new ramp
+            self._ni.set_up_ramp_output(amplitude, offset, freq)
+            self._ni.start_ramp()
+
             self._scope.run_single()
+
             while True:
-                k -= 0.05
-                trigger_level = np.median(self.RampUp_signalR) - k * contrast
-                self._scope.set_egde_trigger(channel=1, level=trigger_level)
                 if k < 0.25:
                     print('did not find resonance')
+                    self._ni.stop_ramp()
+                    self._ni.close_ramp()
                     break
                 # if triggered then get data
                 try:
                     self._scope.scope.write('*OPC?')
                     sleep(0.05)
                     ret_str = self._scope.scope.read()
-                    if ret_str == r'1':
-                        self._linewidth_get_data()
-
-                        # Make sure we are still at the right position
-                        self._ni.stop_ramp()
-                        self._ni.close_ramp()
-
-                        #Update plot in gui
-                        self.sigLinewidthPlotUpdated.emit(self.linewidth_time, self.linewidth_volts[0])
-
-                        # Refind correct position
-                        offset = self._find_resonance_position_from_strain_gauge(current_offset=modes[target_mode],
-                                                                                 target_position=
-                                                                                 self.RampUp_signalSG_polyfit[
-                                                                                     self.current_resonances[
-                                                                                         target_mode]],
-                                                                                 threshold_pos=0.05)  # 50 nm
-
-                        #Start new ramp
-                        self._ni.set_up_ramp_output(amplitude, offset, freq)
-                        self._ni.start_ramp()
-
-                        break
                 except:
-                    # if not tiggered then raise trigger level and try again
+                    self.log.info('failed to communicate with scope')
+                    ret_str = -1
+
+                if ret_str == r'1':
+                    self._linewidth_get_data()
+
+                    # Make sure we are still at the right position
+                    self._ni.stop_ramp()
+                    self._ni.close_ramp()
+
+                    #Update plot in gui
+
+                    self.sigLinewidthPlotUpdated.emit(self.linewidth_time,
+                                                      self.linewidth_volts[0:int(len(self.linewidth_volts) / 4)])
+
+                    break
+                else:
+                    k -= 0.05
+                    trigger_level = np.median(self.RampUp_signalR) - k * contrast
+                    self._scope.set_egde_trigger(channel=1, level=trigger_level)
                     continue
+
 
             self.linewidth_time_list = np.concatenate([self.linewidth_time_list, self.linewidth_time])
             self.linewidth_volts_list = np.concatenate([self.linewidth_volts_list, self.linewidth_volts])
@@ -547,8 +547,6 @@ class CavityLogic(GenericLogic):
         data = np.vstack([self.linewidth_time, data])
 
         # close ramp
-        self._ni.stop_ramp()
-        self._ni.close_ramp()
         self._ni.cavity_set_position(20.0e-6)
 
 
