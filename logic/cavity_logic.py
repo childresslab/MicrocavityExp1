@@ -54,7 +54,10 @@ class CavityLogic(GenericLogic):
 
         self.first_sweep = None
         self.first_corrected_resonances = None
-        self.mode_shift_list = []
+        self.last_sweep = None
+        self.last_corrected_resonances = None
+
+        self.mode_shift_list = [0]
 
         self._current_filepath = r'C:\BittorrentSyncDrive\Personal - Rasmus\Rasmus notes\Measurements\test'
 
@@ -219,6 +222,7 @@ class CavityLogic(GenericLogic):
         self._scope.set_vertical_position(3.0, 0)
         self._scope.set_vertical_scale(4.0, 2)
         self._scope.set_vertical_position(4.0, -2.5)
+        sleep(1)
 
     def start_full_sweep(self):
         """
@@ -268,6 +272,10 @@ class CavityLogic(GenericLogic):
         if sweep_number is None:
             sweep_number = self.current_sweep_number
 
+        if sweep_number > 1:
+            self.last_sweep = self.RampUp_signalR
+            self.last_corrected_resonances = self.current_resonances
+
         try_num = 1
         while True:
             try:
@@ -299,6 +307,7 @@ class CavityLogic(GenericLogic):
             self.first_RampUp_signalSG_polyfit = self.RampUp_signalSG_polyfit
             plt.plot(self.first_RampUp_signalSG_polyfit, self.first_sweep)
             plt.plot(self.first_RampUp_signalSG_polyfit[corrected_resonances], self.first_sweep[corrected_resonances],'o', color='r')
+            plt.grid()
             plt.show()
 
         self.current_sweep_number += 1
@@ -328,10 +337,20 @@ class CavityLogic(GenericLogic):
 
         nsamples = mod_signal_a.size
         dt = np.arange(-nsamples / 2, nsamples / 2, dtype=int)
+
+        # Add penalty
+        penalty = - 0.25 * np.max(xcorr) * np.abs(dt)
+        xcorr = xcorr + penalty
+
         mode_delay = dt[xcorr.argmax()]
+
+        if np.abs(mode_delay) > 3:
+            return None
 
         if show is True:
             plt.plot(dt, xcorr)
+            plt.grid()
+            plt.savefig(self._current_filepath + r'\correlation{}.png'.format(self.current_sweep_number), dpi=200)
             plt.show()
 
         return int(mode_delay)
@@ -342,16 +361,26 @@ class CavityLogic(GenericLogic):
         if low_mode is None:
             low_mode = 0
         if high_mode is None:
-            high_mode = np.min([len(self.first_corrected_resonances), len(resonances)])
+            high_mode = np.min([len(self.last_corrected_resonances), len(resonances)])
 
-        mode_shift = self.find_phase_difference(self.first_sweep[self.first_corrected_resonances[low_mode:high_mode]],
-                                                self.RampUp_signalR[resonances[low_mode:high_mode]], show=True)
+
+        if self.last_sweep is None:
+            self.last_sweep = self.first_sweep
+            self.last_corrected_resonances = self.first_corrected_resonances
+
+        #mode_shift = self.find_phase_difference(self.last_sweep[self.last_corrected_resonances[low_mode:high_mode]],
+        #                                        self.RampUp_signalR[resonances[low_mode:high_mode]], show=True)
+
+        closet_old_mode = np.argmin(np.abs(self.target_position-self.RampUp_signalSG_polyfit[resonances]))
+
+        #if mode_shift == None:
+        #    return None
 
         # store mode shifts
-        self.mode_shift_list.append(mode_shift)
+        #self.mode_shift_list.append(mode_shift+self.mode_shift_list[-1])
 
         # Find closets mode
-        target_mode = self.current_mode_number - mode_shift
+        target_mode = closet_old_mode - 1
 
         if plot is True:
             index = self.first_corrected_resonances[self.current_mode_number]
@@ -362,6 +391,7 @@ class CavityLogic(GenericLogic):
             plt.plot(self.RampUp_signalSG_polyfit[new_index], self.RampUp_signalR[new_index], 'x',
                      markersize=20, color='r')
             plt.grid()
+            plt.savefig(self._current_filepath+r'\Target_mode_plot_{}.png'.format(self.current_sweep_number),dpi=200)
             plt.show()
 
         return target_mode
@@ -484,10 +514,10 @@ class CavityLogic(GenericLogic):
 
         self.linewidth_time_list = np.array([])
         self.linewidth_volts_list = np.array([])
-
+        self.target_position = self.RampUp_signalSG_polyfit[self.current_resonances[target_mode]]
         # Get data from scope
-
-        for i in range(repeat):
+        i = 0
+        while i < repeat:
             k = 1.0
 
             # Refind correct position
@@ -496,51 +526,50 @@ class CavityLogic(GenericLogic):
                                                                      self.RampUp_signalSG_polyfit[
                                                                          self.current_resonances[
                                                                              target_mode]],
-                                                                     threshold_pos=0.05)  # 50 nm
+                                                                     threshold_pos=0.025)  # 25 nm
 
             # Start new ramp
             self._ni.set_up_ramp_output(amplitude, offset, freq)
             self._ni.start_ramp()
 
+            trigger_level = np.median(self.RampUp_signalR) - k * contrast
+            self._scope.set_egde_trigger(channel=1, level=trigger_level)
             self._scope.run_single()
 
             while True:
-                if k < 0.25:
-                    print('did not find resonance')
-                    self._ni.stop_ramp()
-                    self._ni.close_ramp()
+                if k < 0.2:
+                    print('did not find resonance {} {}'.format(self.current_mode_number,i))
+                    self.linewidth_time = np.zeros_like(self.linewidth_time)
+                    self.linewidth_volts = np.zeros_like(self.linewidth_volts)
+                    ret_str = 0
                     break
                 # if triggered then get data
+
+                self._scope.scope.write('*OPC?')
+                sleep(0.1)
                 try:
-                    self._scope.scope.write('*OPC?')
-                    sleep(0.05)
                     ret_str = self._scope.scope.read()
-                except:
-                    self.log.info('failed to communicate with scope')
-                    ret_str = -1
-
-                if ret_str == r'1':
-                    self._linewidth_get_data()
-
-                    # Make sure we are still at the right position
-                    self._ni.stop_ramp()
-                    self._ni.close_ramp()
-
-                    #Update plot in gui
-
-                    self.sigLinewidthPlotUpdated.emit(self.linewidth_time,
-                                                      self.linewidth_volts[0:int(len(self.linewidth_volts) / 4)])
-
                     break
-                else:
-                    k -= 0.05
+                except:
+                    k -= 0.02
                     trigger_level = np.median(self.RampUp_signalR) - k * contrast
                     self._scope.set_egde_trigger(channel=1, level=trigger_level)
                     continue
 
+            if ret_str == r'1':
+                self._linewidth_get_data()
+                i += 1
+                self.linewidth_time_list = np.concatenate([self.linewidth_time_list, self.linewidth_time])
+                self.linewidth_volts_list = np.concatenate([self.linewidth_volts_list, self.linewidth_volts])
 
-            self.linewidth_time_list = np.concatenate([self.linewidth_time_list, self.linewidth_time])
-            self.linewidth_volts_list = np.concatenate([self.linewidth_volts_list, self.linewidth_volts])
+                self.sigLinewidthPlotUpdated.emit(self.linewidth_time,
+                                              self.linewidth_volts[0:int(len(self.linewidth_volts) / 4)])
+
+            # Make sure we are still at the right position
+            self._ni.stop_ramp()
+            self._ni.close_ramp()
+
+            #Update plot in gui
 
         data = self.linewidth_volts_list
         data = data.reshape(4 * repeat, int(len(data) / (4 * repeat)))

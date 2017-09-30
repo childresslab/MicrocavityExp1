@@ -85,10 +85,10 @@ class CavityGui(GUIBase):
 
         self.fullsweep_image = pg.PlotDataItem(self._cavity_logic.RampUp_time,
                                           self._cavity_logic.RampUp_signalR,
-                                          pen=pg.mkPen(palette.c1, style=QtCore.Qt.DotLine),
+                                          pen=pg.mkPen(palette.c2, style=QtCore.Qt.DotLine),
                                           symbol='o',
-                                          symbolPen=palette.c1,
-                                          symbolBrush=palette.c1,
+                                          symbolPen=palette.c2,
+                                          symbolBrush=palette.c2,
                                           symbolSize=2)
 
         self._mw.fullsweep_PlotWidget.setLabel(axis='left', text='Signal', units='V')
@@ -99,10 +99,10 @@ class CavityGui(GUIBase):
 
         self.linewidth_image = pg.PlotDataItem(self._cavity_logic.RampUp_time,
                                                self._cavity_logic.RampUp_signalR,
-                                               pen=pg.mkPen(palette.c1, style=QtCore.Qt.DotLine),
+                                               pen=pg.mkPen(palette.c3, style=QtCore.Qt.DotLine),
                                                symbol='o',
-                                               symbolPen=palette.c1,
-                                               symbolBrush=palette.c1,
+                                               symbolPen=palette.c3,
+                                               symbolBrush=palette.c3,
                                                symbolSize=2)
 
         self._mw.linewidth_PlotWidget.setLabel(axis='left', text='Signal', units='V')

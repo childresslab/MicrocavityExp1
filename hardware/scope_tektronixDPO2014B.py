@@ -33,10 +33,14 @@ class Scope(Base, ScopeInterface):
         self.scope.timeout = 1000 # ms
         self.scope.read_termination = '\n'
         self.scope.write_termination = '\n'
-        try:
-            print('Connected to ' + self.scope.query('*IDN?'))
-        except:
-            self.log.error('Did not connect to scope!!!')
+        k = 0
+        while k < 5:
+            try:
+                print('Connected to ' + self.scope.query('*IDN?'))
+                break
+            except:
+                self.log.error('Did not connect to scope!!!')
+                k += 1
 
         return 0
 
@@ -102,7 +106,16 @@ class Scope(Base, ScopeInterface):
             xincr = float(self.scope.ask('WFMPRE:XINCR?'))
 
             self.scope.write('CURVE?')
-            data = self.scope.read_raw()
+            i = 0
+            while i < 5:
+                try:
+                    data = self.scope.read_raw()
+                    break
+                except:
+                    self.log.info('Communication to scope failed')
+                    i += 1
+
+
             headerlen = 2 + int(data[1])
             header = data[:headerlen]
             ADC_wave = data[headerlen:-1]
