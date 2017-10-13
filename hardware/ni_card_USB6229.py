@@ -1379,10 +1379,11 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
             return np.array([[-1.]])
 
         self._line_length = np.shape(line_path)[1]
-        self._start_analog_input()
-        daq.DAQmxCfgSampClkTiming(self._scanner_ai_task, "", 10000, daq.DAQmx_Val_Rising, daq.DAQmx_Val_FiniteSamps, 10)
-        rawdata = np.zeros(10, dtype=np.float64)
-        read = daq.int32()
+        #self._start_analog_input()
+        #daq.DAQmxCfgSampClkTiming(self._scanner_ai_task, "", 10000, daq.DAQmx_Val_Rising, daq.DAQmx_Val_FiniteSamps, 10)
+        #rawdata = np.zeros(10, dtype=np.float64)
+        #read = daq.int32()
+        rawdata = np.zeros(self._samples_number, dtype=np.float64)
         try:
             line_volts = self._scanner_position_to_volt(line_path)
 
@@ -1392,17 +1393,17 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
             for i in range(self._line_length):
                 print(line_path[0][i])
                 self.scanner_set_position(x=line_path[0][i], y=line_path[1][i], z=line_path[2][i])
-                daq.DAQmxStartTask(self._scanner_ai_task)
-                daq.DAQmxReadAnalogF64(self._scanner_ai_task, 10, 1.0, daq.DAQmx_Val_GroupByChannel, rawdata, 10, daq.byref(read), None)
-                self.line_counts[0, i] = rawdata.sum() / 10
-                self._stop_analog_input()
-                #rawdata = self.get_counter(samples=self._samples_number)
-                #self.line_counts[0, i] =  rawdata.sum() / self._samples_number
+                #daq.DAQmxStartTask(self._scanner_ai_task)
+                #daq.DAQmxReadAnalogF64(self._scanner_ai_task, 10, 1.0, daq.DAQmx_Val_GroupByChannel, rawdata, 10, daq.byref(read), None)
+                #self.line_counts[0, i] = rawdata.sum() / 10
+                #self._stop_analog_input()
+                rawdata = self.get_counter(samples=self._samples_number)
+                self.line_counts[0, i] = rawdata.sum() / self._samples_number
 
 
             # stop the analog output task
-            self._stop_analog_input()
-            self._stop_analog_output()
+            #self._stop_analog_input()
+            #self._stop_analog_output()
 
             # update the scanner position instance variable
             self._current_position = list(line_path[:, -1])
@@ -1419,7 +1420,7 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
         @return int: error code (0:OK, -1:error)
         """
         a = self._stop_analog_output()
-        #c = self.close_counter()
+        c = self.close_counter()
         return -1 if a < 0 else 0# or c < 0 else 0
 
     def close_scanner_clock(self):
