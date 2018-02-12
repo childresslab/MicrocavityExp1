@@ -136,7 +136,7 @@ class CavityGui(GUIBase):
         #self._mw.ramp_frequency_DoubleSpinBox.setOpts(minStep=0.5)  # set the minimal step to 0.5Hz
         self._mw.ramp_offset_DoubleSpinBox.setMinimum(-3.75)
         self._mw.ramp_amplitude_DoubleSpinBox.setMaximum(0)
-        self._mw.ramp_amplitude_DoubleSpinBox.setMinimum(-3.75/2)
+        self._mw.ramp_amplitude_DoubleSpinBox.setMinimum(3.75/2)
 
         self._mw.StartRamp_PushButton.clicked.connect(self.start_ramp)
         self._mw.StopRamp_PushButton.clicked.connect(self.stop_ramp)

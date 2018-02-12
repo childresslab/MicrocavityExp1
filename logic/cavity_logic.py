@@ -16,6 +16,7 @@ from core.module import Connector, ConfigOption, StatusVar
 class CavityLogic(GenericLogic):
     """
     This is the Logic class for cavity scanning.
+    
     """
     _modclass = 'confocallogic'
     _modtype = 'logic'
