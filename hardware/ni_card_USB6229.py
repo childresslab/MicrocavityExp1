@@ -423,6 +423,7 @@ class NICard(Base, SlowCounterInterface, ConfocalScannerInterface):
             raise Exception('Failed to start NI Card module due to analog output failure.')
 
     def on_deactivate(self):
+
         """ Shut down the NI card.
         """
         self.reset_hardware()

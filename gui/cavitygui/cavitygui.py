@@ -131,8 +131,8 @@ class CavityGui(GUIBase):
         #self._mw.ramp_frequency_DoubleSpinBox.setMaximum(constraints.max_frequency)
         self._mw.ramp_frequency_DoubleSpinBox.setMaximum(50)
         self._mw.ramp_frequency_DoubleSpinBox.setMinimum(0)
-        #self._mw.ramp_frequency_DoubleSpinBox.setOpts(minStep=0.5)  # set the minimal step to 0.5Hz
         self._mw.ramp_offset_DoubleSpinBox.setMaximum(0)
+        #self._mw.ramp_frequency_DoubleSpinBox.setOpts(minStep=0.5)  # set the minimal step to 0.5Hz
         self._mw.ramp_offset_DoubleSpinBox.setMinimum(-3.75)
         self._mw.ramp_amplitude_DoubleSpinBox.setMaximum(0)
         self._mw.ramp_amplitude_DoubleSpinBox.setMinimum(-3.75/2)
