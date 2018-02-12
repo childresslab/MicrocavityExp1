@@ -118,6 +118,7 @@ class CavityGui(GUIBase):
         self._mw.start_finesse_PushBotton.clicked.connect(self.start_finesse_measurement)
         self._mw.stop_finesse_PushBotton.clicked.connect(self.stop_finesse_measurement)
         self._mw.continue_finesse_PushBotton.clicked.connect(self.contiune_finesse_measurement)
+        self._mw.GOpushButton.clicked.connect(self.set_cavity_position)
 
         # Signals from logic
         self._cavity_logic.sigFullSweepPlotUpdated.connect(self.update_fullsweep_plot, QtCore.Qt.QueuedConnection)
@@ -138,7 +139,7 @@ class CavityGui(GUIBase):
         self._mw.ramp_amplitude_DoubleSpinBox.setMinimum(-3.75/2)
 
         self._mw.StartRamp_PushButton.clicked.connect(self.start_ramp)
-        self._mw.StartRamp_PushButton.clicked.connect(self.stop_ramp)
+        self._mw.StopRamp_PushButton.clicked.connect(self.stop_ramp)
 
 
 
@@ -158,6 +159,10 @@ class CavityGui(GUIBase):
         return
 
     def fullsweeptest(self):
+        """
+
+        @return:
+        """
         self._cavity_logic.get_nth_full_sweep(sweep_number=1, save=False)
 
 
@@ -170,6 +175,10 @@ class CavityGui(GUIBase):
         # Update raw data matrix plot
 
     def start_ramp(self):
+        """
+
+        @return:
+        """
 
         amplitude = self._mw.ramp_amplitude_DoubleSpinBox.value()
         offset = self._mw.ramp_offset_DoubleSpinBox.value()
@@ -206,6 +215,9 @@ class CavityGui(GUIBase):
 
     def update_sweep_number(self, value):
         self._mw.SweepNumber_DoubleSpinBox.setValue(value=value)
+
+    def set_cavity_position(self):
+        self._cavity_logic.set_cavity_position(self._mw.doubleSpinBox_2.value()*1e-6)
 
 
 
