@@ -31,20 +31,6 @@
         </property>
        </widget>
       </item>
-      <item row="3" column="0">
-       <widget class="QPushButton" name="fullsweeptest_PushBotton">
-        <property name="text">
-         <string>Test Full sweep</string>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="0">
-       <widget class="QPushButton" name="start_finesse_PushBotton">
-        <property name="text">
-         <string>Start finesse meausrement </string>
-        </property>
-       </widget>
-      </item>
       <item row="2" column="0">
        <widget class="QLabel" name="label_5">
         <property name="text">
@@ -56,6 +42,20 @@
        <widget class="QDoubleSpinBox" name="doubleSpinBox_5">
         <property name="decimals">
          <number>0</number>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QPushButton" name="fullsweeptest_PushBotton">
+        <property name="text">
+         <string>Test Full sweep</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QPushButton" name="start_finesse_PushBotton">
+        <property name="text">
+         <string>Start finesse meausrement </string>
         </property>
        </widget>
       </item>
@@ -96,7 +96,7 @@
      <x>0</x>
      <y>0</y>
      <width>1069</width>
-     <height>31</height>
+     <height>21</height>
     </rect>
    </property>
   </widget>
@@ -107,6 +107,12 @@
      <horstretch>0</horstretch>
      <verstretch>0</verstretch>
     </sizepolicy>
+   </property>
+   <property name="minimumSize">
+    <size>
+     <width>500</width>
+     <height>111</height>
+    </size>
    </property>
    <property name="windowTitle">
     <string>Full sweep</string>
@@ -129,6 +135,12 @@
      <verstretch>0</verstretch>
     </sizepolicy>
    </property>
+   <property name="minimumSize">
+    <size>
+     <width>500</width>
+     <height>111</height>
+    </size>
+   </property>
    <property name="windowTitle">
     <string>Linewidth mreasurements</string>
    </property>
@@ -144,6 +156,12 @@
    </widget>
   </widget>
   <widget class="QDockWidget" name="ramp_widget">
+   <property name="minimumSize">
+    <size>
+     <width>300</width>
+     <height>149</height>
+    </size>
+   </property>
    <property name="floating">
     <bool>false</bool>
    </property>
@@ -160,27 +178,44 @@
        <item row="0" column="0">
         <widget class="QLabel" name="label_2">
          <property name="text">
-          <string>Frequency</string>
+          <string>Frequency (Hz)</string>
          </property>
         </widget>
        </item>
        <item row="0" column="1">
-        <widget class="QDoubleSpinBox" name="ramp_frequency_DoubleSpinBox"/>
+        <widget class="QDoubleSpinBox" name="ramp_frequency_DoubleSpinBox">
+         <property name="maximum">
+          <double>200.000000000000000</double>
+         </property>
+        </widget>
        </item>
        <item row="1" column="0">
         <widget class="QLabel" name="label_3">
          <property name="text">
-          <string>Offset</string>
+          <string>Offset (V)</string>
          </property>
         </widget>
        </item>
        <item row="1" column="1">
-        <widget class="QDoubleSpinBox" name="ramp_offset_DoubleSpinBox"/>
+        <widget class="QDoubleSpinBox" name="ramp_offset_DoubleSpinBox">
+         <property name="minimum">
+          <double>-3.750000000000000</double>
+         </property>
+         <property name="maximum">
+          <double>0.000000000000000</double>
+         </property>
+         <property name="singleStep">
+          <double>0.010000000000000</double>
+         </property>
+         <property name="value">
+          <double>0.000000000000000</double>
+         </property>
+        </widget>
        </item>
        <item row="2" column="0">
         <widget class="QLabel" name="label_4">
          <property name="text">
-          <string>Amplitude</string>
+          <string>Amplitude (V)</string>
          </property>
         </widget>
        </item>
@@ -199,7 +234,20 @@
         </widget>
        </item>
        <item row="2" column="1">
-        <widget class="QDoubleSpinBox" name="ramp_amplitude_DoubleSpinBox"/>
+        <widget class="QDoubleSpinBox" name="ramp_amplitude_DoubleSpinBox">
+         <property name="decimals">
+          <number>3</number>
+         </property>
+         <property name="minimum">
+          <double>0.000000000000000</double>
+         </property>
+         <property name="maximum">
+          <double>1.860000000000000</double>
+         </property>
+         <property name="singleStep">
+          <double>0.010000000000000</double>
+         </property>
+        </widget>
        </item>
       </layout>
      </item>
@@ -215,6 +263,57 @@
         </size>
        </property>
       </spacer>
+     </item>
+    </layout>
+   </widget>
+  </widget>
+  <widget class="QDockWidget" name="cavityposition">
+   <property name="sizePolicy">
+    <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+     <horstretch>0</horstretch>
+     <verstretch>0</verstretch>
+    </sizepolicy>
+   </property>
+   <property name="minimumSize">
+    <size>
+     <width>300</width>
+     <height>300</height>
+    </size>
+   </property>
+   <property name="windowTitle">
+    <string>Cavity Position</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>2</number>
+   </attribute>
+   <widget class="QWidget" name="dockWidgetContents_4">
+    <layout class="QFormLayout" name="formLayout_3">
+     <item row="1" column="1">
+      <widget class="QDoubleSpinBox" name="doubleSpinBox_2">
+       <property name="decimals">
+        <number>3</number>
+       </property>
+       <property name="maximum">
+        <double>20.000000000000000</double>
+       </property>
+       <property name="singleStep">
+        <double>0.001000000000000</double>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="0">
+      <widget class="QLabel" name="label_6">
+       <property name="text">
+        <string>Target position (um)</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="1">
+      <widget class="QPushButton" name="GOpushButton">
+       <property name="text">
+        <string>Go</string>
+       </property>
+      </widget>
      </item>
     </layout>
    </widget>

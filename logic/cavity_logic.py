@@ -69,6 +69,8 @@ class CavityLogic(GenericLogic):
         self._save_logic = self.get_connector('savelogic')
         self.cavity_range = self._ni._cavity_position_range[1] - self._ni._cavity_position_range[0]
 
+
+
     def on_deactivate(self):
         """ Reverse steps of activation
 
@@ -840,10 +842,11 @@ class CavityLogic(GenericLogic):
         @return object: Hardware constraints object
         """
         # FIXME: Should be from hardware
-        #constraints = self._ni.get_limits()
-        #return constraints
+        constraints_dict = {'min_position': 0, 'max_position': 20e-6, 'min_speed': 0, 'max_speed':  100,
+                            'min_temperature': -100, 'max_temperature': 30, 'min_averages': 1, 'max_averages': 1000,
+                            'min_exposure': 0, 'max_exposure': 100}
 
-        pass
+        return constraints_dict
 
     def start_ramp(self, amplitude, offset, freq):
 
@@ -855,19 +858,58 @@ class CavityLogic(GenericLogic):
         self._ni.stop_ramp()
         self._ni.close_ramp()
 
-    def start_finesse_measurement(self):
+    def start_finesse_measurement(self , repeat=10, freq=40):
+        """
+        Starts the finesse measurement
 
+        @param repeat:
+        @param freq:
+        @return:
+        """
+
+        self.finesse_measure_cont = True
         ret_val = self.get_nth_full_sweep(sweep_number=1, save=True)
         if ret_val != 0:
             self.log.error('Did not get first sweep!')
 
-        # fit
+        self.ramp_popt = self._fit_ramp(xdata=self.time_trim[::9], ydata=self.volts_trim[self.ramp_channel,::9])
+        Modes = self._ni.sweep_function(self.RampUp_time[self.first_corrected_resonances],*self.ramp_popt)
+        self.current_mode_number = len(self.first_corrected_resonances)-2
+        self.linewidth_measurement(Modes, target_mode=self.current_mode_number, repeat=repeat, freq=freq)
+
+        high_mode = len(self.first_corrected_resonances)-2
+        low_mode = 0
+
+        for i in range(15):
+            if self.finesse_measure_cont is True:
+                self.current_mode_number -=1
+                ret_val = self.get_nth_full_sweep(sweep_number=2+i)
+                target_mode = self.get_target_mode(self.current_resonances, low_mode=low_mode, high_mode=high_mode, plot=True)
+                if target_mode == None:
+                    print('Moved more that 5 modes')
+                self.ramp_popt = self._fit_ramp(xdata=self.time_trim[::9], ydata=self.volts_trim[self.ramp_channel, ::9])
+                Modes = self._ni.sweep_function(self.RampUp_time[self.current_resonances], *self.ramp_popt)
+                self.linewidth_measurement(Modes, target_mode=target_mode, repeat=repeat, freq=freq)
+            else:
+                break
 
     def continue_finesse_measurements(self):
+        self.finesse_measure_cont = False
         pass
 
     def stop_finesse_measurement(self):
         pass
+
+    def set_cavity_position(self, position):
+        self._ni.cavity_set_position(position)
+
+
+
+
+
+
+
+
 
 
 
